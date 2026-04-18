@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShoppingCart, X, Menu, ArrowRight, Instagram, Github, Trophy, Goal, Activity, Search } from 'lucide-react';
+import { catalogApi, cartApi, ordersApi } from './api';
 
 interface Product {
-  id: number;
+  id: string; // Backend uses string UUIDs
   name: string;
   price: number;
   image: string;
@@ -16,491 +17,27 @@ interface Product {
   nativeName?: string;
 }
 
-const PRODUCTS: Product[] = [
-  {
-    id: 1,
-    name: "Camisola 'ÁGUIA GLORIOSA' - SLB",
-    price: 89.99,
-    image: "https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&q=80&w=800",
-    hoverImage: "https://images.unsplash.com/photo-1543326727-cf6c39e8f84c?auto=format&fit=crop&q=80&w=800",
-    thirdImage: "https://images.unsplash.com/photo-1511886929837-354d827aae26?auto=format&fit=crop&q=80&w=800",
-    category: "Equipamento",
-    description: "A mística da Luz numa peça de alta performance. Design exclusivo 'Camisa 10'.",
-    sizes: ["S", "M", "L", "XL"]
-  },
-  {
-    id: 2,
-    name: "Camisola 'LEÃO RAMPANTE' - SCP",
-    price: 89.99,
-    image: "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800",
-    hoverImage: "https://images.unsplash.com/photo-1518152006812-edab29b069ac?auto=format&fit=crop&q=80&w=800",
-    thirdImage: "https://images.unsplash.com/photo-1510566337590-2fc1f21d0faa?auto=format&fit=crop&q=80&w=800",
-    category: "Equipamento",
-    description: "O ADN de campeão em cada fibra. Elegância e tradição verde e branca.",
-    sizes: ["S", "M", "L", "XL"]
-  },
-  {
-    id: 3,
-    name: "Camisola 'DRAGÃO AZUL' - FCP",
-    price: 89.99,
-    image: "https://images.unsplash.com/photo-1511886929837-354d827aae26?auto=format&fit=crop&q=80&w=800",
-    hoverImage: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=800",
-    thirdImage: "https://images.unsplash.com/photo-1553062407-98eeb94c6a62?auto=format&fit=crop&q=80&w=800",
-    category: "Equipamento",
-    description: "A força do Norte representada num design moderno e arrojado.",
-    sizes: ["S", "M", "L", "XL"]
-  },
-  {
-    id: 4,
-    name: "Camisola 'GUERREIRO' - SCB",
-    price: 79.99,
-    image: "https://images.unsplash.com/photo-1483721310020-03333e577078?auto=format&fit=crop&q=80&w=800",
-    hoverImage: "https://images.unsplash.com/photo-1519315901367-f34ff9154487?auto=format&fit=crop&q=80&w=800",
-    thirdImage: "https://images.unsplash.com/photo-1588850561407-ed78c282e89b?auto=format&fit=crop&q=80&w=800",
-    category: "Equipamento",
-    description: "A garra dos Guerreiros do Minho. Conforto e estilo para os adeptos mais fiéis.",
-    sizes: ["S", "M", "L", "XL"]
-  },
-  {
-    id: 5,
-    name: "Camisola 'GALÁCTICO' - MADRID",
-    price: 94.99,
-    image: "https://images.unsplash.com/photo-1543326727-cf6c39e8f84c?auto=format&fit=crop&q=80&w=800",
-    hoverImage: "https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&q=80&w=800",
-    thirdImage: "https://images.unsplash.com/photo-1511886929837-354d827aae26?auto=format&fit=crop&q=80&w=800",
-    category: "Equipamento",
-    description: "A realeza do futebol mundial. O branco imaculado com detalhes em ouro.",
-    sizes: ["S", "M", "L", "XL"]
-  },
-  {
-    id: 6,
-    name: "Camisola 'CITIZEN' - MANCHESTER",
-    price: 94.99,
-    image: "https://images.unsplash.com/photo-1518152006812-edab29b069ac?auto=format&fit=crop&q=80&w=800",
-    hoverImage: "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800",
-    thirdImage: "https://images.unsplash.com/photo-1510566337590-2fc1f21d0faa?auto=format&fit=crop&q=80&w=800",
-    category: "Equipamento",
-    description: "O domínio tecnológico e tático traduzido num design futurista.",
-    sizes: ["S", "M", "L", "XL"]
-  },
-  {
-    id: 7,
-    name: "Camisola 'PARISIEN' - PSG",
-    price: 99.99,
-    image: "https://images.unsplash.com/photo-1511886929837-354d827aae26?auto=format&fit=crop&q=80&w=800",
-    hoverImage: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=800",
-    thirdImage: "https://images.unsplash.com/photo-1553062407-98eeb94c6a62?auto=format&fit=crop&q=80&w=800",
-    category: "Equipamento",
-    description: "Onde a moda encontra o futebol. Estilo inconfundível da capital francesa.",
-    sizes: ["S", "M", "L", "XL"]
-  },
-  {
-    id: 8,
-    name: "Camisola 'NERAZZURRI' - INTER",
-    price: 89.99,
-    image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=800",
-    hoverImage: "https://images.unsplash.com/photo-1483721310020-03333e577078?auto=format&fit=crop&q=80&w=800",
-    thirdImage: "https://images.unsplash.com/photo-1519315901367-f34ff9154487?auto=format&fit=crop&q=80&w=800",
-    category: "Equipamento",
-    description: "A elegância italiana em tons de azul e preto. Um clássico moderno.",
-    sizes: ["S", "M", "L", "XL"]
-  }
-];
 
-const PRIME_PRODUCTS: Product[] = [
-  {
-    id: 101,
-    name: "Camisola 'PRIME GOLD' - SLB",
-    price: 129.99,
-    image: "https://images.unsplash.com/photo-1543326727-cf6c39e8f84c?auto=format&fit=crop&q=80&w=800",
-    hoverImage: "https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&q=80&w=800",
-    thirdImage: "https://images.unsplash.com/photo-1511886929837-354d827aae26?auto=format&fit=crop&q=80&w=800",
-    category: "Prime",
-    description: "Edição limitada com detalhes em ouro real de 24k. O pináculo do luxo desportivo.",
-    sizes: ["M", "L", "XL"]
-  },
-  {
-    id: 102,
-    name: "Camisola 'PRIME TITAN' - FCP",
-    price: 129.99,
-    image: "https://images.unsplash.com/photo-1511886929837-354d827aae26?auto=format&fit=crop&q=80&w=800",
-    hoverImage: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=800",
-    thirdImage: "https://images.unsplash.com/photo-1553062407-98eeb94c6a62?auto=format&fit=crop&q=80&w=800",
-    category: "Prime",
-    description: "Estrutura em carbono e titânio para uma leveza nunca antes vista.",
-    sizes: ["M", "L", "XL"]
-  },
-  {
-    id: 103,
-    name: "Bola 'PRIME ORBIT'",
-    price: 99.99,
-    image: "https://images.unsplash.com/photo-1614632537190-23e414d40399?auto=format&fit=crop&q=80&w=800",
-    category: "Prime",
-    description: "Aerodinâmica testada em túnel de vento. A bola mais precisa do mundo.",
-    sizes: ["Tamanho 5"]
-  },
-  {
-    id: 104,
-    name: "Relógio 'PRIME TIME'",
-    price: 199.99,
-    image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=800",
-    category: "Prime",
-    description: "Cronómetro de alta precisão para atletas de elite.",
-    sizes: ["Único"]
-  },
-  {
-    id: 105,
-    name: "Mala de Viagem 'PRIME JET'",
-    price: 159.99,
-    image: "https://images.unsplash.com/photo-1553062407-98eeb94c6a62?auto=format&fit=crop&q=80&w=800",
-    category: "Prime",
-    description: "Couro italiano e acabamentos em metal escovado.",
-    sizes: ["Único"]
-  },
-  {
-    id: 106,
-    name: "Óculos 'PRIME VISION'",
-    price: 129.99,
-    image: "https://images.unsplash.com/photo-1572635196237-14b3f281503f?auto=format&fit=crop&q=80&w=800",
-    category: "Prime",
-    description: "Lentes polarizadas com proteção máxima e estilo inconfundível.",
-    sizes: ["Único"]
-  },
-  {
-    id: 107,
-    name: "Sapatilhas 'PRIME WALK'",
-    price: 139.99,
-    image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=800",
-    category: "Prime",
-    description: "Conforto supremo para o dia-a-dia do craque.",
-    sizes: ["40", "41", "42", "43"]
-  },
-  {
-    id: 108,
-    name: "Auriculares 'PRIME SOUND'",
-    price: 179.99,
-    image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=800",
-    category: "Prime",
-    description: "Cancelamento de ruído ativo para foco total antes do jogo.",
-    sizes: ["Único"]
-  }
-];
 
-const EQUIPAMENTOS_PRODUCTS: Product[] = [
-  {
-    id: 201,
-    name: "Fato de Seleção 'ACADEMY'",
-    price: 84.99,
-    image: "https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&q=80&w=800",
-    category: "Equipamento",
-    description: "Conjunto completo de casaco e calças. Tecido técnico que mantém a temperatura ideal.",
-    sizes: ["S", "M", "L", "XL"]
-  },
-  {
-    id: 202,
-    name: "Camisola 'VAPOR KNIT'",
-    price: 49.99,
-    image: "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800",
-    category: "Equipamento",
-    description: "A tecnologia mais avançada em camisolas de jogo. Leveza e ventilação extrema.",
-    sizes: ["S", "M", "L", "XL"]
-  },
-  {
-    id: 203,
-    name: "T-Shirt 'STRIKE'",
-    price: 29.99,
-    image: "https://images.unsplash.com/photo-1519315901367-f34ff9154487?auto=format&fit=crop&q=80&w=800",
-    category: "Equipamento",
-    description: "Design moderno para treino ou lazer. Corte ajustado que favorece a performance.",
-    sizes: ["S", "M", "L", "XL"]
-  },
-  {
-    id: 204,
-    name: "Meiões 'MATCH'",
-    price: 12.99,
-    image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=800",
-    category: "Equipamento",
-    description: "Suporte anatómico e amortecimento nas zonas de maior impacto.",
-    sizes: ["39-42", "43-46"]
-  },
-  {
-    id: 205,
-    name: "Fato de Seleção 'CHAMPION'",
-    price: 94.99,
-    image: "https://images.unsplash.com/photo-1483721310020-03333e577078?auto=format&fit=crop&q=80&w=800",
-    category: "Equipamento",
-    description: "Edição especial para dias de jogo. Detalhes em dourado e acabamento premium.",
-    sizes: ["S", "M", "L", "XL"]
-  },
-  {
-    id: 206,
-    name: "Camisola 'PRO DRI-FIT'",
-    price: 39.99,
-    image: "https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&q=80&w=800",
-    category: "Equipamento",
-    description: "Camisola de base para máxima absorção de suor. Mantém-te seco e focado.",
-    sizes: ["S", "M", "L", "XL"]
-  },
-  {
-    id: 207,
-    name: "T-Shirt 'LEGEND'",
-    price: 34.99,
-    image: "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800",
-    category: "Equipamento",
-    description: "Homenagem às lendas do futebol. Tecido suave e duradouro.",
-    sizes: ["S", "M", "L", "XL"]
-  },
-  {
-    id: 208,
-    name: "Meiões 'ELITE'",
-    price: 18.99,
-    image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=800",
-    category: "Equipamento",
-    description: "Compressão graduada para melhor recuperação. O topo de gama em meias desportivas.",
-    sizes: ["39-42", "43-46"]
-  },
-  {
-    id: 209,
-    name: "Fato de Seleção 'WINTER'",
-    price: 109.99,
-    image: "https://images.unsplash.com/photo-1483721310020-03333e577078?auto=format&fit=crop&q=80&w=800",
-    category: "Equipamento",
-    description: "Proteção térmica para os dias mais frios. Resistente ao vento e à chuva leve.",
-    sizes: ["S", "M", "L", "XL"]
-  },
-  {
-    id: 210,
-    name: "Camisola 'GOALIE'",
-    price: 54.99,
-    image: "https://images.unsplash.com/photo-1510566337590-2fc1f21d0faa?auto=format&fit=crop&q=80&w=800",
-    category: "Equipamento",
-    description: "Proteção acolchoada nos cotovelos. Design vibrante para dominar a baliza.",
-    sizes: ["M", "L", "XL"]
-  },
-  {
-    id: 211,
-    name: "T-Shirt 'TRAINING'",
-    price: 24.99,
-    image: "https://images.unsplash.com/photo-1519315901367-f34ff9154487?auto=format&fit=crop&q=80&w=800",
-    category: "Equipamento",
-    description: "Básica mas essencial. O teu parceiro diário no campo de treino.",
-    sizes: ["S", "M", "L", "XL"]
-  },
-  {
-    id: 212,
-    name: "Meiões 'CLASSIC'",
-    price: 9.99,
-    image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&q=80&w=800",
-    category: "Equipamento",
-    description: "O design tradicional que nunca falha. Conforto garantido em cada jogo.",
-    sizes: ["35-38", "39-42", "43-46"]
-  }
-];
-
-const RETRO_PRODUCTS: Product[] = [
-  {
-    id: 301,
-    name: "Camisola Retro 'ZIDANE 98'",
-    price: 74.99,
-    image: "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800",
-    category: "Retro",
-    description: "A mítica camisola da final de 98. Um símbolo de elegância e vitória.",
-    sizes: ["S", "M", "L", "XL"]
-  },
-  {
-    id: 302,
-    name: "Camisola Retro 'RONALDO 2002'",
-    price: 79.99,
-    image: "https://images.unsplash.com/photo-1518152006812-edab29b069ac?auto=format&fit=crop&q=80&w=800",
-    category: "Retro",
-    description: "O regresso do Fenómeno em 2002. Design icónico com tecnologia de época.",
-    sizes: ["M", "L", "XL"]
-  },
-  {
-    id: 303,
-    name: "Camisola Retro 'FIGO 2000'",
-    price: 69.99,
-    image: "https://images.unsplash.com/photo-1543326727-cf6c39e8f84c?auto=format&fit=crop&q=80&w=800",
-    category: "Retro",
-    description: "A camisola do ano em que Figo conquistou a Bola de Ouro.",
-    sizes: ["S", "M", "L", "XL"]
-  },
-  {
-    id: 304,
-    name: "Camisola Retro 'EUSÉBIO 66'",
-    price: 84.99,
-    image: "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800",
-    category: "Retro",
-    description: "Homenagem ao Pantera Negra no Mundial de 66. Algodão pesado e detalhes bordados.",
-    sizes: ["M", "L", "XL", "XXL"]
-  },
-  {
-    id: 305,
-    name: "Camisola Retro 'BECKHAM 7'",
-    price: 74.99,
-    image: "https://images.unsplash.com/photo-1518152006812-edab29b069ac?auto=format&fit=crop&q=80&w=800",
-    category: "Retro",
-    description: "O estilo inconfundível do número 7. Um clássico do futebol inglês.",
-    sizes: ["S", "M", "L", "XL"]
-  },
-  {
-    id: 306,
-    name: "Camisola Retro 'MALDINI 3'",
-    price: 69.99,
-    image: "https://images.unsplash.com/photo-1543326727-cf6c39e8f84c?auto=format&fit=crop&q=80&w=800",
-    category: "Retro",
-    description: "A classe eterna do capitão. Design minimalista e imponente.",
-    sizes: ["M", "L", "XL"]
-  },
-  {
-    id: 307,
-    name: "Camisola Retro 'CRUYFF 14'",
-    price: 79.99,
-    image: "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800",
-    category: "Retro",
-    description: "Futebol total. A camisola que mudou o jogo para sempre.",
-    sizes: ["S", "M", "L", "XL"]
-  },
-  {
-    id: 308,
-    name: "Camisola Retro 'BEST 7'",
-    price: 64.99,
-    image: "https://images.unsplash.com/photo-1518152006812-edab29b069ac?auto=format&fit=crop&q=80&w=800",
-    category: "Retro",
-    description: "O génio rebelde de Belfast. Estilo puro dos anos 60.",
-    sizes: ["S", "M", "L"]
-  },
-  {
-    id: 309,
-    name: "Camisola Retro 'CANTONA 7'",
-    price: 74.99,
-    image: "https://images.unsplash.com/photo-1543326727-cf6c39e8f84c?auto=format&fit=crop&q=80&w=800",
-    category: "Retro",
-    description: "Gola levantada e autoridade máxima. O Rei de Old Trafford.",
-    sizes: ["M", "L", "XL"]
-  },
-  {
-    id: 310,
-    name: "Camisola Retro 'HENRY 14'",
-    price: 69.99,
-    image: "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=800",
-    category: "Retro",
-    description: "Velocidade e finalização perfeita. A era dos invencíveis.",
-    sizes: ["S", "M", "L", "XL"]
-  },
-  {
-    id: 311,
-    name: "Camisola Retro 'TOTTI 10'",
-    price: 79.99,
-    image: "https://images.unsplash.com/photo-1518152006812-edab29b069ac?auto=format&fit=crop&q=80&w=800",
-    category: "Retro",
-    description: "Il Capitano. Uma vida dedicada a uma só camisola.",
-    sizes: ["M", "L", "XL"]
-  },
-  {
-    id: 312,
-    name: "Camisola Retro 'BAGGIO 10'",
-    price: 74.99,
-    image: "https://images.unsplash.com/photo-1543326727-cf6c39e8f84c?auto=format&fit=crop&q=80&w=800",
-    category: "Retro",
-    description: "O rabo-de-cavalo divino. Magia pura nos pés do número 10.",
-    sizes: ["S", "M", "L", "XL"]
-  }
-];
-
-const SELECAO_PRODUCTS: Product[] = [
-  {
-    id: 401,
-    name: "Camisola Seleção 'PRO'",
-    price: 34.99,
-    image: "https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&q=80&w=800",
-    category: "Seleção",
-    description: "Tecido ultraleve com ventilação estratégica. Foca-te no teu objetivo.",
-    sizes: ["S", "M", "L", "XL"],
-    flag: "https://flagcdn.com/w640/pt.png",
-    nativeName: "Portugal"
-  },
-  {
-    id: 402,
-    name: "Calções Seleção 'ELITE'",
-    price: 29.99,
-    image: "https://images.unsplash.com/photo-1519315901367-f34ff9154487?auto=format&fit=crop&q=80&w=800",
-    category: "Seleção",
-    description: "Liberdade total de movimentos. Cintura elástica com cordão interno.",
-    sizes: ["S", "M", "L", "XL"],
-    flag: "https://flagcdn.com/w640/br.png",
-    nativeName: "Brasil"
-  },
-  {
-    id: 403,
-    name: "Casaco Seleção 'STORM'",
-    price: 64.99,
-    image: "https://images.unsplash.com/photo-1483721310020-03333e577078?auto=format&fit=crop&q=80&w=800",
-    category: "Seleção",
-    description: "Proteção contra os elementos sem comprometer a respirabilidade.",
-    sizes: ["M", "L", "XL"],
-    flag: "https://flagcdn.com/w640/ar.png",
-    nativeName: "Argentina"
-  },
-  {
-    id: 404,
-    name: "Calças Seleção 'TECH'",
-    price: 49.99,
-    image: "https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&q=80&w=800",
-    category: "Seleção",
-    description: "Corte afunilado para evitar distrações. Bolsos com fecho seguro.",
-    sizes: ["S", "M", "L", "XL"],
-    flag: "https://flagcdn.com/w640/fr.png",
-    nativeName: "France"
-  },
-  {
-    id: 405,
-    name: "Colete Seleção 'TACTIC'",
-    price: 19.99,
-    image: "https://images.unsplash.com/photo-1519315901367-f34ff9154487?auto=format&fit=crop&q=80&w=800",
-    category: "Seleção",
-    description: "Para distinguir as equipas no campo. Malha leve e resistente.",
-    sizes: ["Único"],
-    flag: "https://flagcdn.com/w640/de.png",
-    nativeName: "Deutschland"
-  },
-  {
-    id: 406,
-    name: "Camisola Compressão 'BASE'",
-    price: 24.99,
-    image: "https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&q=80&w=800",
-    category: "Seleção",
-    description: "Segunda pele que mantém os músculos quentes e protegidos.",
-    sizes: ["S", "M", "L", "XL"],
-    flag: "https://flagcdn.com/w640/it.png",
-    nativeName: "Italia"
-  },
-  {
-    id: 407,
-    name: "Calções Compressão 'CORE'",
-    price: 19.99,
-    image: "https://images.unsplash.com/photo-1519315901367-f34ff9154487?auto=format&fit=crop&q=80&w=800",
-    category: "Seleção",
-    description: "Suporte extra onde mais precisas. Costuras planas para evitar irritações.",
-    sizes: ["S", "M", "L"],
-    flag: "https://flagcdn.com/w640/es.png",
-    nativeName: "España"
-  },
-  {
-    id: 408,
-    name: "Acessórios Seleção 'OTHERS'",
-    price: 54.99,
-    image: "https://images.unsplash.com/photo-1511886929837-354d827aae26?auto=format&fit=crop&q=80&w=800",
-    category: "Seleção",
-    description: "Equipamento variado para outras seleções mundiais.",
-    sizes: ["S", "M", "L", "XL"],
-    flag: "https://flagcdn.com/w640/un.png",
-    nativeName: "Others"
-  }
-];
+const mapBackendProduct = (p: any): Product => ({
+  id: p.id,
+  name: p.name,
+  price: p.base_price,
+  image: p.image_url || '',
+  hoverImage: p.hover_image_url,
+  thirdImage: p.third_image_url,
+  category: p.category || p.tags?.[0] || 'Equipamento',
+  description: p.attributes?.description || p.name,
+  sizes: p.attributes?.sizes || ["S", "M", "L", "XL"],
+  flag: p.attributes?.flag,
+  nativeName: p.attributes?.nativeName
+});
 
 export default function App() {
-  const [cart, setCart] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [mostSold, setMostSold] = useState<Product[]>([]);
+  const [cart, setCart] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -520,6 +57,27 @@ export default function App() {
   const [expandedFAQ, setExpandedFAQ] = useState<number | null>(null);
   const [scrolled, setScrolled] = useState(false);
 
+  // Fetch initial data
+  useEffect(() => {
+    const initData = async () => {
+      try {
+        const productData = await catalogApi.getProducts();
+        setProducts(productData.items.map(mapBackendProduct));
+        
+        const mostSoldData = await catalogApi.getMostSold();
+        setMostSold(Array.isArray(mostSoldData) ? mostSoldData.map(mapBackendProduct) : []);
+
+        const cartData = await cartApi.getCart();
+        setCart(cartData.items || []);
+      } catch (err) {
+        console.error("Failed to fetch initial data", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    initData();
+  }, []);
+
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
     window.addEventListener('scroll', handleScroll);
@@ -533,20 +91,38 @@ export default function App() {
     }
   }, [selectedProduct]);
 
-  const addToCart = (product: Product) => {
-    setCart([...cart, product]);
-    setIsCartOpen(true);
+  const addToCart = async (product: Product) => {
+    try {
+      const updatedCart = await cartApi.addItem(product.id, 1);
+      setCart(updatedCart.items);
+      setIsCartOpen(true);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Falha ao adicionar ao carrinho");
+    }
   };
 
-  const removeFromCart = (index: number) => {
-    const newCart = [...cart];
-    newCart.splice(index, 1);
-    setCart(newCart);
+  const removeFromCart = async (productId: string) => {
+    try {
+      const updatedCart = await cartApi.removeItem(productId);
+      setCart(updatedCart.items);
+    } catch (err) {
+      console.error("Failed to remove item", err);
+    }
   };
 
-  const cartTotal = cart.reduce((sum, item) => sum + item.price, 0);
+  const updateQuantity = async (productId: string, quantity: number) => {
+    try {
+      if (quantity <= 0) return removeFromCart(productId);
+      const updatedCart = await cartApi.updateItem(productId, quantity);
+      setCart(updatedCart.items);
+    } catch (err) {
+      console.error("Failed to update quantity", err);
+    }
+  };
 
-  const filteredProducts = PRODUCTS.filter(product => {
+  const cartTotal = cart.reduce((sum, item) => sum + (item.price_at_addition * item.quantity), 0);
+
+  const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          product.description.toLowerCase().includes(searchQuery.toLowerCase());
@@ -695,7 +271,7 @@ export default function App() {
             <h2 className="font-display text-4xl md:text-6xl font-bold tracking-tighter">COLEÇÃO 2026</h2>
           </div>
           <div className="flex gap-6 overflow-x-auto pb-2 w-full md:w-auto">
-            {['Todos', 'Retro', 'Equipamento', 'Seleção', 'Acessórios'].map((cat) => (
+            {['Todos', 'Retro', 'Equipamento', 'Seleção', 'Novidades', 'Acessórios'].map((cat) => (
               <button 
                 key={cat} 
                 onClick={() => setActiveCategory(cat)}
@@ -780,6 +356,38 @@ export default function App() {
         </div>
       </section>
 
+      {/* Most Sold Section */}
+      {mostSold.length > 0 && (
+        <section className="bg-brand-white/5 py-24 mb-10">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="flex items-center gap-2 text-brand-gold mb-2">
+              <Trophy size={16} />
+              <span className="text-[10px] font-bold uppercase tracking-widest">Os Favoritos</span>
+            </div>
+            <h2 className="font-display text-4xl font-bold tracking-tighter mb-12">MAIS <span className="text-brand-gold">VENDIDOS</span></h2>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              {mostSold.map((product) => (
+                <div 
+                  key={`most-sold-${product.id}`}
+                  onClick={() => setSelectedProduct(product)}
+                  className="bg-brand-black border border-brand-white/10 p-4 flex gap-6 group cursor-pointer hover:border-brand-gold transition-colors"
+                >
+                  <div className="w-24 h-32 overflow-hidden bg-[#0f0f0f]">
+                    <img src={product.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                  </div>
+                  <div className="flex flex-col justify-center">
+                    <h3 className="font-bold text-xs uppercase tracking-wider mb-2">{product.name}</h3>
+                    <p className="text-brand-gold font-display font-bold text-lg">€{product.price}</p>
+                    <button className="mt-4 text-[9px] font-black uppercase tracking-widest text-brand-white/40 group-hover:text-brand-gold transition-colors">Ver Detalhes</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Footer */}
       <footer className="bg-[#050505] border-t border-brand-white/5">
         <div className="max-w-7xl mx-auto px-6 py-20">
@@ -860,26 +468,35 @@ export default function App() {
                     <p className="uppercase tracking-widest text-[10px] font-bold">O teu balneário está vazio</p>
                   </div>
                 ) : (
-                  cart.map((item, idx) => (
-                    <div key={idx} className="flex gap-4 group p-2 border border-brand-white/5 bg-brand-white/5">
-                      <div className="w-20 h-24 bg-[#0f0f0f] overflow-hidden">
-                        <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex justify-between">
-                          <h3 className="text-[10px] font-bold uppercase tracking-wider">{item.name}</h3>
-                          <button 
-                            onClick={() => removeFromCart(idx)}
-                            className="text-brand-white/30 hover:text-brand-gold transition-colors"
-                          >
-                            <X size={16} />
-                          </button>
+                  cart.map((item, idx) => {
+                    const productInfo = products.find(p => p.id === item.product_id);
+                    return (
+                      <div key={item.product_id || idx} className="flex gap-4 group p-2 border border-brand-white/5 bg-brand-white/5">
+                        <div className="w-20 h-24 bg-[#0f0f0f] overflow-hidden">
+                          <img src={productInfo?.image || ''} alt={item.product_name} className="w-full h-full object-cover" />
                         </div>
-                        <p className="text-[9px] text-brand-white/40 mt-1 uppercase tracking-widest">Tamanho: Único</p>
-                        <p className="font-display font-bold mt-2 text-brand-gold">€{item.price}</p>
+                        <div className="flex-1">
+                          <div className="flex justify-between">
+                            <h3 className="text-[10px] font-bold uppercase tracking-wider">{item.product_name}</h3>
+                            <button 
+                              onClick={() => removeFromCart(item.product_id)}
+                              className="text-brand-white/30 hover:text-brand-gold transition-colors"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                          <div className="flex justify-between items-center mt-2">
+                            <div className="flex items-center gap-2 border border-brand-white/10 px-2 py-1">
+                              <button onClick={() => updateQuantity(item.product_id, item.quantity - 1)} className="text-[10px] hover:text-brand-gold">-</button>
+                              <span className="text-[10px] font-bold">{item.quantity}</span>
+                              <button onClick={() => updateQuantity(item.product_id, item.quantity + 1)} className="text-[10px] hover:text-brand-gold">+</button>
+                            </div>
+                            <p className="font-display font-bold text-brand-gold text-sm">€{(item.price_at_addition * item.quantity).toFixed(2)}</p>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
 
@@ -889,7 +506,18 @@ export default function App() {
                     <span className="text-[10px] font-bold uppercase tracking-widest text-brand-white/40">Subtotal</span>
                     <span className="font-display text-3xl font-bold text-brand-gold">€{cartTotal.toFixed(2)}</span>
                   </div>
-                  <button className="w-full bg-brand-gold text-brand-black py-4 font-bold uppercase tracking-[0.2em] text-xs hover:bg-brand-white transition-colors">
+                  <button 
+                    onClick={async () => {
+                      try {
+                        const session = await ordersApi.createCheckout("user_Guest");
+                        if (session.url) window.location.href = session.url;
+                        else alert("Checkout simulation: Session created locally.");
+                      } catch (err) {
+                        alert("Erro ao iniciar checkout");
+                      }
+                    }}
+                    className="w-full bg-brand-gold text-brand-black py-4 font-bold uppercase tracking-[0.2em] text-xs hover:bg-brand-white transition-colors"
+                  >
                     Finalizar Pedido
                   </button>
                 </div>
@@ -1109,7 +737,10 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-12">
-                {PRIME_PRODUCTS.slice(0, showAllPrime ? 8 : 4).map((product, idx) => (
+                {products
+                  .filter(p => p.category.toLowerCase() === 'prime')
+                  .slice(0, showAllPrime ? 8 : 4)
+                  .map((product, idx) => (
                   <motion.div
                     key={product.id}
                     initial={{ opacity: 0, y: 20 }}
@@ -1189,7 +820,7 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-12">
-                {EQUIPAMENTOS_PRODUCTS.map((product, idx) => (
+                {products.filter(p => p.category === 'Equipamento').map((product, idx) => (
                   <motion.div
                     key={product.id}
                     initial={{ opacity: 0, y: 20 }}
@@ -1258,7 +889,7 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-12">
-                {RETRO_PRODUCTS.map((product, idx) => (
+                {products.filter(p => p.category === 'Retro').map((product, idx) => (
                   <motion.div
                     key={product.id}
                     initial={{ opacity: 0, y: 20 }}
@@ -1327,7 +958,7 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-12">
-                {SELECAO_PRODUCTS.map((product, idx) => (
+                {products.filter(p => p.category === 'Seleção').map((product, idx) => (
                   <motion.div
                     key={product.id}
                     initial={{ opacity: 0, y: 20 }}
@@ -1698,7 +1329,7 @@ export default function App() {
                     onClick={() => {
                       setSelectedProduct({
                         ...selectedCountry,
-                        id: selectedCountry.id * 100 + i,
+                        id: `${selectedCountry.id}-${i}`,
                         name: `Equipamento ${opt.type} - ${selectedCountry.nativeName}`,
                         price: opt.price,
                         image: opt.img,
