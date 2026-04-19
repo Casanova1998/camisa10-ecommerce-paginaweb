@@ -78,9 +78,10 @@ export default function App() {
     zip: ''
   });
   const [couponCode, setCouponCode] = useState('');
+  const [couponError, setCouponError] = useState('');
   const [orderId, setOrderId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [discountInfo, setDiscountInfo] = useState<{ discount: number, finalTotal: number } | null>(null);
+  const [discountInfo, setDiscountInfo] = useState<{ discount: number, finalTotal: number, code: string, type: string, value: number } | null>(null);
 
   const cartTotal = useMemo(() => {
     return cart.reduce((total, item) => total + (item.price_at_addition * item.quantity), 0);
@@ -90,13 +91,49 @@ export default function App() {
     return [...products].sort(() => 0.5 - Math.random()).slice(0, 4);
   }, [products]);
 
-  useEffect(() => {
-    if (couponCode === 'CAMISA10') {
-      const discount = cartTotal * 0.1;
-      setDiscountInfo({ discount, finalTotal: cartTotal - discount });
-    } else {
+  const validateCoupon = async (code: string) => {
+    if (!code.trim()) {
+      setCouponError('');
+      setDiscountInfo(null);
+      return;
+    }
+    try {
+      const response = await ordersApi.validateCoupon(code);
+      if (response.valid) {
+        setCouponError('');
+        let discount = 0;
+        if (response.discount_type === 'percent') {
+          discount = cartTotal * (response.value / 100);
+        } else {
+          discount = response.value;
+        }
+        setDiscountInfo({
+          discount,
+          finalTotal: cartTotal - discount,
+          code: response.code,
+          type: response.discount_type,
+          value: response.value
+        });
+      } else {
+        setCouponError(response.message || 'Invalid coupon');
+        setDiscountInfo(null);
+      }
+    } catch (err: any) {
+      setCouponError(err.message || 'Failed to validate coupon');
       setDiscountInfo(null);
     }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (couponCode.trim()) {
+        validateCoupon(couponCode);
+      } else {
+        setDiscountInfo(null);
+        setCouponError('');
+      }
+    }, 500);
+    return () => clearTimeout(timer);
   }, [couponCode, cartTotal]);
 
   useEffect(() => {
@@ -211,7 +248,13 @@ export default function App() {
         setCart(updatedCart.items.map(mapBackendCartItem));
       }
     } catch (err) {
-      console.warn("Remove item API failed – item removed locally:", err);
+      // Refresh cart from server to handle session mismatch
+      try {
+        const cartData = await cartApi.getCart();
+        setCart((cartData.items || []).map(mapBackendCartItem));
+      } catch {
+        console.warn("Remove item API failed – item removed locally:", err);
+      }
     }
   };
 
@@ -229,7 +272,13 @@ export default function App() {
         setCart(updatedCart.items.map(mapBackendCartItem));
       }
     } catch (err) {
-      console.warn("Update quantity API failed – using local state:", err);
+      // Refresh cart from server to handle session mismatch
+      try {
+        const cartData = await cartApi.getCart();
+        setCart((cartData.items || []).map(mapBackendCartItem));
+      } catch {
+        console.warn("Update quantity API failed – using local state:", err);
+      }
     }
   };
   const handleCheckout = () => {
@@ -242,10 +291,11 @@ export default function App() {
       // Create session on backend
       const response = await ordersApi.createCheckout({
         email: shippingData.email,
-        user_id: "guest"
+        user_id: "guest",
+        coupon_code: couponCode || undefined
       });
-      if (response.checkout_url) {
-        window.location.href = response.checkout_url;
+      if (response.checkout_url || response.session_url) {
+        window.location.href = response.checkout_url || response.session_url;
       } else {
         setOrderId(response.id);
         setCheckoutStep('success');
@@ -778,10 +828,18 @@ export default function App() {
                       type="text" 
                       value={couponCode}
                       onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                      placeholder="CAMISA10 (-10%)"
+                      placeholder="Digite o código"
                       className="bg-brand-white/5 border border-brand-white/10 px-4 py-3 flex-1 text-xs focus:outline-none focus:border-brand-gold uppercase tracking-widest"
                     />
                   </div>
+                  {couponError && (
+                    <p className="text-red-500 text-[10px] mt-2">{couponError}</p>
+                  )}
+                  {discountInfo && (
+                    <p className="text-green-500 text-[10px] mt-2">
+                      {discountInfo.type === 'percent' ? `${discountInfo.value}%` : `€${discountInfo.value.toFixed(2)}`} de desconto aplicado
+                    </p>
+                  )}
                 </div>
 
                 <div className="pt-8 border-t border-brand-white/10 flex justify-between items-end">
@@ -917,7 +975,7 @@ export default function App() {
                 ))}
                 {discountInfo && discountInfo.discount > 0 && (
                   <div className="flex justify-between items-center text-xs text-brand-gold">
-                    <span>Desconto (CAMISA10)</span>
+                    <span>Desconto ({discountInfo.code})</span>
                     <span>- €{discountInfo.discount.toFixed(2)}</span>
                   </div>
                 )}

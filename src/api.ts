@@ -52,9 +52,14 @@ export const cartApi = {
 };
 
 export const ordersApi = {
-  createCheckout: (data: { email?: string; user_id?: string }) =>
+  createCheckout: (data: { email?: string; user_id?: string; coupon_code?: string }) =>
     apiRequest("/orders/checkout/create-session", {
       method: "POST",
       data: { cart_session_id: "from-cookie", ...data },
+    }),
+  validateCoupon: (code: string) =>
+    apiRequest("/orders/coupons/validate", {
+      method: "POST",
+      data: { code },
     }),
 };
