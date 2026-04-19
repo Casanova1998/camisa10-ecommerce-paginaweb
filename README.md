@@ -2,19 +2,31 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+# Camisa 10 E-commerce Frontend
 
-This contains everything you need to run your app locally.
+A React/Vite e-commerce frontend for the Camisa 10 online store.
 
-View your app in AI Studio: https://ai.studio/apps/81aa1c77-6fb4-4af7-9638-062276a0b370
+## Prerequisites
 
-## Run Locally
+- Node.js 18+
 
-**Prerequisites:**  Node.js
-
+## Setup
 
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+   ```bash
+   npm install
+   ```
+
+2. Configure environment variables in `.env`:
+   ```bash
+   VITE_API_BASE_URL=http://localhost:8000/api/v1
+   ```
+
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
+
+## API Integration
+
+The app connects to a backend API configured via `VITE_API_BASE_URL`. Update this in `.env` to point to your API server.

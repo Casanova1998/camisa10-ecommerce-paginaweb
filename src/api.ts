@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:8000/api/v1";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
 
 export async function apiRequest(endpoint: string, options: RequestInit = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
@@ -16,7 +16,10 @@ export async function apiRequest(endpoint: string, options: RequestInit = {}) {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || "API request failed");
+    const detail = Array.isArray(errorData.detail)
+      ? errorData.detail.map((e: any) => e.msg).join(", ")
+      : errorData.detail;
+    throw new Error(detail || "API request failed");
   }
 
   return response.json();
@@ -46,9 +49,9 @@ export const cartApi = {
 };
 
 export const ordersApi = {
-  createCheckout: (userId: string) => 
+  createCheckout: (data: { email?: string, user_id?: string }) => 
     apiRequest("/orders/checkout/create-session", {
       method: "POST",
-      body: JSON.stringify({ cart_session_id: "from-cookie", user_id: userId }),
+      body: JSON.stringify({ cart_session_id: "from-cookie", ...data }),
     }),
 };
