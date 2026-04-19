@@ -1,28 +1,31 @@
+import axios from "axios";
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
 
-export async function apiRequest(endpoint: string, options: RequestInit = {}) {
-  const url = `${API_BASE_URL}${endpoint}`;
-  
-  const defaultOptions: RequestInit = {
-    ...options,
-    credentials: "include", // Essential for HttpOnly cookies
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  };
+export const api = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
 
-  const response = await fetch(url, defaultOptions);
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    const detail = Array.isArray(errorData.detail)
-      ? errorData.detail.map((e: any) => e.msg).join(", ")
-      : errorData.detail;
-    throw new Error(detail || "API request failed");
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const errorData = error.response?.data;
+    if (errorData) {
+      const detail = Array.isArray(errorData.detail)
+        ? errorData.detail.map((e: any) => e.msg).join(", ")
+        : errorData.detail;
+      return Promise.reject(new Error(detail || "API request failed"));
+    }
+    return Promise.reject(error);
   }
+);
 
-  return response.json();
+export async function apiRequest(endpoint: string, options: any = {}) {
+  return api(endpoint, options).then((res) => res.data);
 }
 
 export const catalogApi = {
@@ -33,25 +36,25 @@ export const catalogApi = {
 
 export const cartApi = {
   getCart: () => apiRequest("/cart"),
-  addItem: (productId: string, quantity: number) => 
+  addItem: (productId: string, quantity: number) =>
     apiRequest("/cart/items", {
       method: "POST",
-      body: JSON.stringify({ product_id: productId, quantity }),
+      data: { product_id: productId, quantity },
     }),
-  updateItem: (productId: string, quantity: number) => 
+  updateItem: (productId: string, quantity: number) =>
     apiRequest(`/cart/items/${productId}`, {
       method: "PUT",
-      body: JSON.stringify({ quantity }),
+      data: { quantity },
     }),
-  removeItem: (productId: string) => 
+  removeItem: (productId: string) =>
     apiRequest(`/cart/items/${productId}`, { method: "DELETE" }),
   clearCart: () => apiRequest("/cart", { method: "DELETE" }),
 };
 
 export const ordersApi = {
-  createCheckout: (data: { email?: string, user_id?: string }) => 
+  createCheckout: (data: { email?: string; user_id?: string }) =>
     apiRequest("/orders/checkout/create-session", {
       method: "POST",
-      body: JSON.stringify({ cart_session_id: "from-cookie", ...data }),
+      data: { cart_session_id: "from-cookie", ...data },
     }),
 };

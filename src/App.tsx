@@ -20,13 +20,15 @@ interface Product {
   nativeName?: string;
 }
 
+const DEFAULT_IMAGE = "https://placehold.co/400x500/0f0f0f/c5a059?text=Sem+Imagem";
+
 const mapBackendProduct = (p: any): Product => ({
   id: p.id,
   name: p.name,
   price: p.base_price,
   promotionalPrice: p.promotional_price,
   status: p.status || 'normal',
-  image: p.image_url || null,
+  image: p.image_url || DEFAULT_IMAGE,
   hoverImage: p.hover_image_url || null,
   thirdImage: p.third_image_url || null,
   category: p.category || p.tags?.[0] || 'Equipamento',
