@@ -7,6 +7,8 @@ interface Product {
   id: string; // Backend uses string UUIDs
   name: string;
   price: number;
+  promotionalPrice?: number;
+  status: string;
   image: string;
   hoverImage?: string;
   thirdImage?: string;
@@ -17,12 +19,12 @@ interface Product {
   nativeName?: string;
 }
 
-
-
 const mapBackendProduct = (p: any): Product => ({
   id: p.id,
   name: p.name,
   price: p.base_price,
+  promotionalPrice: p.promotional_price,
+  status: p.status || 'normal',
   image: p.image_url || '',
   hoverImage: p.hover_image_url,
   thirdImage: p.third_image_url,
@@ -301,8 +303,14 @@ export default function App() {
                   <img 
                     src={product.image} 
                     alt={product.name}
-                    className="w-full h-full object-cover transition-all duration-700 group-hover:scale-105 opacity-80 group-hover:opacity-0"
+                    className={`w-full h-full object-cover transition-all duration-700 group-hover:scale-105 opacity-80 ${product.hoverImage ? 'group-hover:opacity-0' : ''}`}
                     referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      if (product.hoverImage && target.src !== product.hoverImage) {
+                        target.src = product.hoverImage;
+                      }
+                    }}
                   />
                   {product.hoverImage && (
                     <img 
@@ -324,18 +332,37 @@ export default function App() {
                       Adicionar ao Carrinho
                     </button>
                   </div>
-                  <div className="absolute top-4 right-4">
-                    <span className="text-[9px] font-bold uppercase tracking-widest bg-brand-gold text-brand-black px-2 py-1">
+                  <div className="absolute top-4 left-4 flex flex-col gap-2">
+                    <span className="text-[9px] font-bold uppercase tracking-widest bg-brand-gold text-brand-black px-2 py-1 w-fit">
                       {product.category}
                     </span>
+                    {product.status === 'promotion' && (
+                      <span className="text-[9px] font-bold uppercase tracking-widest bg-red-600 text-white px-2 py-1 w-fit animate-pulse">
+                        PROMOÇÃO
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex justify-between items-start px-1">
                   <div>
                     <h3 className="font-bold text-xs uppercase tracking-wider group-hover:text-brand-gold transition-colors">{product.name}</h3>
-                    <p className="text-brand-white/40 text-[9px] mt-1 uppercase tracking-widest">Stock Limitado</p>
+                    <p className="text-brand-white/40 text-[9px] mt-1 uppercase tracking-widest">
+                      {product.status === 'promotion' ? 'Promoção Limitada' : 'Stock Limitado'}
+                    </p>
                   </div>
-                  <span className="font-display font-bold text-brand-gold">€{product.price}</span>
+                  <div className="flex flex-col items-end">
+                    {product.status === 'promotion' && product.promotionalPrice ? (
+                      <>
+                        <span className="text-brand-white/40 text-[10px] line-through">€{product.price.toFixed(2)}</span>
+                        <span className="font-display font-bold text-brand-gold">€{product.promotionalPrice.toFixed(2)}</span>
+                        <span className="text-red-500 text-[9px] font-bold mt-0.5">
+                          -{Math.round(((product.price - product.promotionalPrice) / product.price) * 100)}%
+                        </span>
+                      </>
+                    ) : (
+                      <span className="font-display font-bold text-brand-gold">€{product.price.toFixed(2)}</span>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             ))
@@ -374,11 +401,28 @@ export default function App() {
                   className="bg-brand-black border border-brand-white/10 p-4 flex gap-6 group cursor-pointer hover:border-brand-gold transition-colors"
                 >
                   <div className="w-24 h-32 overflow-hidden bg-[#0f0f0f]">
-                    <img src={product.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                    <img 
+                      src={product.image} 
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        if (product.hoverImage && target.src !== product.hoverImage) {
+                          target.src = product.hoverImage;
+                        }
+                      }}
+                    />
                   </div>
                   <div className="flex flex-col justify-center">
                     <h3 className="font-bold text-xs uppercase tracking-wider mb-2">{product.name}</h3>
-                    <p className="text-brand-gold font-display font-bold text-lg">€{product.price}</p>
+                    {product.status === 'promotion' && product.promotionalPrice ? (
+                      <div className="flex items-center gap-3">
+                        <p className="text-brand-gold font-display font-bold text-lg">€{product.promotionalPrice.toFixed(2)}</p>
+                        <p className="text-brand-white/40 text-xs line-through">€{product.price.toFixed(2)}</p>
+                      </div>
+                    ) : (
+                      <p className="text-brand-gold font-display font-bold text-lg">€{product.price.toFixed(2)}</p>
+                    )}
                     <button className="mt-4 text-[9px] font-black uppercase tracking-widest text-brand-white/40 group-hover:text-brand-gold transition-colors">Ver Detalhes</button>
                   </div>
                 </div>
@@ -627,6 +671,12 @@ export default function App() {
                   alt={selectedProduct.name} 
                   className="w-full h-full object-cover transition-all duration-500"
                   referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    if (selectedProduct.hoverImage && target.src !== selectedProduct.hoverImage) {
+                      target.src = selectedProduct.hoverImage;
+                    }
+                  }}
                 />
                 
                 {/* Thumbnails */}
@@ -680,8 +730,24 @@ export default function App() {
 
                 <div className="flex flex-col sm:flex-row items-center sm:items-end justify-between gap-6 mt-auto pt-6 md:pt-8 border-t border-brand-white/5">
                   <div className="text-center sm:text-left">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-brand-white/30 block mb-1">Preço</span>
-                    <span className="font-display text-3xl md:text-4xl font-bold text-brand-gold">€{selectedProduct.price}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-brand-white/30 block mb-1">
+                      {selectedProduct.status === 'promotion' ? 'Preço Promocional' : 'Preço'}
+                    </span>
+                    <div className="flex items-center gap-4">
+                      {selectedProduct.status === 'promotion' && selectedProduct.promotionalPrice ? (
+                        <>
+                          <div className="flex flex-col">
+                            <span className="text-brand-white/30 text-xs md:text-sm line-through">€{selectedProduct.price.toFixed(2)}</span>
+                            <span className="font-display text-3xl md:text-5xl font-bold text-brand-gold">€{selectedProduct.promotionalPrice.toFixed(2)}</span>
+                          </div>
+                          <div className="bg-red-600 text-white px-2 py-1 rounded-sm text-[10px] md:text-xs font-black self-center animate-bounce">
+                            -{Math.round(((selectedProduct.price - selectedProduct.promotionalPrice) / selectedProduct.price) * 100)}% OFF
+                          </div>
+                        </>
+                      ) : (
+                        <span className="font-display text-3xl md:text-5xl font-bold text-brand-gold">€{selectedProduct.price.toFixed(2)}</span>
+                      )}
+                    </div>
                   </div>
                   <button 
                     disabled={!selectedSize}
@@ -753,8 +819,14 @@ export default function App() {
                       <img 
                         src={product.image} 
                         alt={product.name}
-                        className="w-full h-full object-cover transition-all duration-700 group-hover:scale-105 opacity-80 group-hover:opacity-0"
+                        className={`w-full h-full object-cover transition-all duration-700 group-hover:scale-105 opacity-80 ${product.hoverImage ? 'group-hover:opacity-0' : ''}`}
                         referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          if (product.hoverImage && target.src !== product.hoverImage) {
+                            target.src = product.hoverImage;
+                          }
+                        }}
                       />
                       {product.hoverImage && (
                         <img 
@@ -765,13 +837,25 @@ export default function App() {
                         />
                       )}
                       <div className="absolute inset-0 bg-brand-gold/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      <div className="absolute top-4 left-4">
+                      <div className="absolute top-4 left-4 flex flex-col gap-2">
                         <span className="text-[8px] font-black uppercase tracking-[0.3em] bg-brand-gold text-brand-black px-2 py-1">PRIME</span>
+                        {product.status === 'promotion' && (
+                          <span className="text-[8px] font-black uppercase tracking-[0.3em] bg-red-600 text-white px-2 py-1 animate-pulse">PROMO</span>
+                        )}
                       </div>
                     </div>
                     <div className="flex justify-between items-start px-1">
                       <h3 className="font-bold text-xs uppercase tracking-wider group-hover:text-brand-gold transition-colors">{product.name}</h3>
-                      <span className="font-display font-bold text-brand-gold">€{product.price}</span>
+                      <div className="flex flex-col items-end">
+                        {product.status === 'promotion' && product.promotionalPrice ? (
+                          <>
+                            <span className="text-brand-white/40 text-[9px] line-through">€{product.price.toFixed(2)}</span>
+                            <span className="font-display font-bold text-brand-gold">€{product.promotionalPrice.toFixed(2)}</span>
+                          </>
+                        ) : (
+                          <span className="font-display font-bold text-brand-gold">€{product.price.toFixed(2)}</span>
+                        )}
+                      </div>
                     </div>
                   </motion.div>
                 ))}
@@ -833,7 +917,7 @@ export default function App() {
                       <img 
                         src={product.image} 
                         alt={product.name}
-                        className="w-full h-full object-cover transition-all duration-700 group-hover:scale-105 opacity-80 group-hover:opacity-0"
+                        className={`w-full h-full object-cover transition-all duration-700 group-hover:scale-105 opacity-80 ${product.hoverImage ? 'group-hover:opacity-0' : ''}`}
                         referrerPolicy="no-referrer"
                       />
                       {product.hoverImage && (
@@ -845,13 +929,27 @@ export default function App() {
                         />
                       )}
                       <div className="absolute inset-0 bg-brand-navy/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      {product.status === 'promotion' && (
+                        <div className="absolute top-4 left-4">
+                          <span className="text-[8px] font-black uppercase tracking-[0.3em] bg-red-600 text-white px-2 py-1 animate-pulse">PROMOÇÃO</span>
+                        </div>
+                      )}
                     </div>
                     <div className="flex justify-between items-start px-1">
                       <div>
                         <h3 className="font-bold text-xs uppercase tracking-wider group-hover:text-brand-gold transition-colors">{product.name}</h3>
                         <span className="text-[8px] uppercase tracking-widest text-brand-white/30 font-bold">{product.category}</span>
                       </div>
-                      <span className="font-display font-bold text-brand-gold">€{product.price}</span>
+                      <div className="flex flex-col items-end">
+                        {product.status === 'promotion' && product.promotionalPrice ? (
+                          <>
+                            <span className="text-brand-white/40 text-[9px] line-through">€{product.price.toFixed(2)}</span>
+                            <span className="font-display font-bold text-brand-gold">€{product.promotionalPrice.toFixed(2)}</span>
+                          </>
+                        ) : (
+                          <span className="font-display font-bold text-brand-gold">€{product.price.toFixed(2)}</span>
+                        )}
+                      </div>
                     </div>
                   </motion.div>
                 ))}
@@ -902,7 +1000,7 @@ export default function App() {
                       <img 
                         src={product.image} 
                         alt={product.name}
-                        className="w-full h-full object-cover transition-all duration-700 group-hover:scale-105 opacity-80 group-hover:opacity-0"
+                        className={`w-full h-full object-cover transition-all duration-700 group-hover:scale-105 opacity-80 ${product.hoverImage ? 'group-hover:opacity-0' : ''}`}
                         referrerPolicy="no-referrer"
                       />
                       {product.hoverImage && (
@@ -914,13 +1012,27 @@ export default function App() {
                         />
                       )}
                       <div className="absolute inset-0 bg-brand-navy/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      {product.status === 'promotion' && (
+                        <div className="absolute top-4 left-4">
+                          <span className="text-[8px] font-black uppercase tracking-[0.3em] bg-red-600 text-white px-2 py-1 animate-pulse">PROMOÇÃO</span>
+                        </div>
+                      )}
                     </div>
                     <div className="flex justify-between items-start px-1">
                       <div>
                         <h3 className="font-bold text-xs uppercase tracking-wider group-hover:text-brand-gold transition-colors">{product.name}</h3>
                         <span className="text-[8px] uppercase tracking-widest text-brand-white/30 font-bold">{product.category}</span>
                       </div>
-                      <span className="font-display font-bold text-brand-gold">€{product.price}</span>
+                      <div className="flex flex-col items-end">
+                        {product.status === 'promotion' && product.promotionalPrice ? (
+                          <>
+                            <span className="text-brand-white/40 text-[9px] line-through">€{product.price.toFixed(2)}</span>
+                            <span className="font-display font-bold text-brand-gold">€{product.promotionalPrice.toFixed(2)}</span>
+                          </>
+                        ) : (
+                          <span className="font-display font-bold text-brand-gold">€{product.price.toFixed(2)}</span>
+                        )}
+                      </div>
                     </div>
                   </motion.div>
                 ))}
@@ -983,25 +1095,54 @@ export default function App() {
                       <img 
                         src={product.image} 
                         alt={product.name}
-                        className="relative z-10 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80 group-hover:opacity-100"
+                        className={`relative z-10 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80 ${product.hoverImage ? 'group-hover:opacity-0' : 'group-hover:opacity-100'}`}
                         referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          if (product.hoverImage && target.src !== product.hoverImage) {
+                            target.src = product.hoverImage;
+                          }
+                        }}
                       />
                       
+                      {product.hoverImage && (
+                        <img 
+                          src={product.hoverImage} 
+                          alt={`${product.name} hover`}
+                          className="absolute inset-0 z-20 w-full h-full object-cover transition-all duration-700 scale-110 group-hover:scale-105 opacity-0 group-hover:opacity-100"
+                          referrerPolicy="no-referrer"
+                        />
+                      )}
+                      
                       {/* Native Name Overlay on Hover */}
-                      <div className="absolute inset-0 bg-brand-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20">
+                      <div className="absolute inset-0 bg-brand-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-30">
                         <span className="font-display text-3xl font-bold tracking-tighter text-brand-gold uppercase">
                           {product.nativeName}
                         </span>
                       </div>
                       
-                      <div className="absolute inset-0 bg-brand-navy/20 opacity-0 group-hover:opacity-100 transition-opacity z-15" />
+                      <div className="absolute inset-0 bg-brand-navy/20 opacity-0 group-hover:opacity-100 transition-opacity z-25" />
+                      {product.status === 'promotion' && (
+                        <div className="absolute top-4 left-4 z-40">
+                          <span className="text-[8px] font-black uppercase tracking-[0.3em] bg-red-600 text-white px-2 py-1 animate-pulse">PROMOÇÃO</span>
+                        </div>
+                      )}
                     </div>
                     <div className="flex justify-between items-start px-1">
                       <div>
                         <h3 className="font-bold text-xs uppercase tracking-wider group-hover:text-brand-gold transition-colors">{product.name}</h3>
                         <span className="text-[8px] uppercase tracking-widest text-brand-white/30 font-bold">{product.category}</span>
                       </div>
-                      <span className="font-display font-bold text-brand-gold">€{product.price}</span>
+                      <div className="flex flex-col items-end">
+                        {product.status === 'promotion' && product.promotionalPrice ? (
+                          <>
+                            <span className="text-brand-white/40 text-[9px] line-through">€{product.price.toFixed(2)}</span>
+                            <span className="font-display font-bold text-brand-gold">€{product.promotionalPrice.toFixed(2)}</span>
+                          </>
+                        ) : (
+                          <span className="font-display font-bold text-brand-gold">€{product.price.toFixed(2)}</span>
+                        )}
+                      </div>
                     </div>
                   </motion.div>
                 ))}
