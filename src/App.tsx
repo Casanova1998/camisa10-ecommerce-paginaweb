@@ -149,29 +149,87 @@ export default function App() {
   const addToCart = async (product: Product) => {
     try {
       const updatedCart = await cartApi.addItem(product.id, 1);
-      setCart(updatedCart.items.map(mapBackendCartItem));
+      // Merge returned cart items; if backend already merges, use its response.
+      // If items list comes back, replace state so we reflect server truth.
+      if (updatedCart?.items) {
+        setCart(updatedCart.items.map(mapBackendCartItem));
+      } else {
+        // Optimistic fallback: increment quantity locally if product already in cart
+        setCart(prev => {
+          const existing = prev.find(i => i.product_id === product.id);
+          if (existing) {
+            return prev.map(i =>
+              i.product_id === product.id
+                ? { ...i, quantity: i.quantity + 1 }
+                : i
+            );
+          }
+          return [
+            ...prev,
+            {
+              product_id: product.id,
+              product_name: product.name,
+              quantity: 1,
+              price_at_addition: product.promotionalPrice ?? product.price,
+            },
+          ];
+        });
+      }
       setIsCartOpen(true);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Falha ao adicionar ao carrinho");
+      // Optimistic local add on API failure so UX is not broken
+      setCart(prev => {
+        const existing = prev.find(i => i.product_id === product.id);
+        if (existing) {
+          return prev.map(i =>
+            i.product_id === product.id
+              ? { ...i, quantity: i.quantity + 1 }
+              : i
+          );
+        }
+        return [
+          ...prev,
+          {
+            product_id: product.id,
+            product_name: product.name,
+            quantity: 1,
+            price_at_addition: product.promotionalPrice ?? product.price,
+          },
+        ];
+      });
+      setIsCartOpen(true);
+      console.warn("Cart API unavailable – using local state:", err);
     }
   };
 
   const removeFromCart = async (productId: string) => {
+    // Optimistic removal first for immediate UX response
+    setCart(prev => prev.filter(i => i.product_id !== productId));
     try {
       const updatedCart = await cartApi.removeItem(productId);
-      setCart(updatedCart.items.map(mapBackendCartItem));
+      if (updatedCart?.items) {
+        setCart(updatedCart.items.map(mapBackendCartItem));
+      }
     } catch (err) {
-      console.error("Failed to remove item", err);
+      console.warn("Remove item API failed – item removed locally:", err);
     }
   };
 
   const updateQuantity = async (productId: string, quantity: number) => {
+    if (quantity <= 0) return removeFromCart(productId);
+    // Optimistic update for immediate UI response
+    setCart(prev =>
+      prev.map(i =>
+        i.product_id === productId ? { ...i, quantity } : i
+      )
+    );
     try {
-      if (quantity <= 0) return removeFromCart(productId);
       const updatedCart = await cartApi.updateItem(productId, quantity);
-      setCart(updatedCart.items.map(mapBackendCartItem));
+      if (updatedCart?.items) {
+        setCart(updatedCart.items.map(mapBackendCartItem));
+      }
     } catch (err) {
-      console.error("Failed to update quantity", err);
+      console.warn("Update quantity API failed – using local state:", err);
     }
   };
   const handleCheckout = () => {
@@ -652,7 +710,7 @@ export default function App() {
                                 )}
                               </div>
                               <div>
-                                <h3 className="text-xs font-bold uppercase tracking-widest mb-1">{item.product_name}</h3>
+                                <h3 className="text-xs font-bold uppercase tracking-widest mb-1 text-brand-white">{item.product_name}</h3>
                                 <p className="text-[10px] text-brand-white/40 uppercase">Tamanho: Único</p>
                               </div>
                             </div>
@@ -661,14 +719,14 @@ export default function App() {
                             <div className="flex items-center justify-center gap-4">
                               <button 
                                 onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
-                                className="w-8 h-8 rounded-full border border-brand-white/10 flex items-center justify-center hover:border-brand-gold hover:text-brand-gold transition-colors"
+                                className="w-8 h-8 rounded-full border border-brand-white/10 flex items-center justify-center hover:border-brand-gold hover:text-brand-gold transition-colors cursor-pointer"
                               >
                                 <Minus size={12} />
                               </button>
-                              <span className="font-display font-bold text-sm min-w-[20px] text-center">{item.quantity}</span>
+                              <span className="font-display font-bold text-sm min-w-[20px] text-center text-brand-white">{item.quantity}</span>
                               <button 
                                 onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
-                                className="w-8 h-8 rounded-full border border-brand-white/10 flex items-center justify-center hover:border-brand-gold hover:text-brand-gold transition-colors"
+                                className="w-8 h-8 rounded-full border border-brand-white/10 flex items-center justify-center hover:border-brand-gold hover:text-brand-gold transition-colors cursor-pointer"
                               >
                                 <Plus size={12} />
                               </button>
@@ -678,7 +736,7 @@ export default function App() {
                           <td className="px-6 py-8">
                             <button 
                               onClick={() => removeFromCart(item.product_id)}
-                              className="p-3 text-brand-white/20 hover:text-brand-gold hover:bg-brand-gold/10 transition-all rounded-full"
+                              className="p-3 text-brand-white/20 hover:text-brand-gold hover:bg-brand-gold/10 transition-all rounded-full cursor-pointer"
                             >
                               <Trash2 size={18} />
                             </button>
@@ -765,10 +823,11 @@ export default function App() {
                     <input 
                       required
                       type="text" 
+                      maxLength={60}
                       placeholder="Ex: Cristiano Ronaldo"
                       className="w-full bg-brand-white/5 border border-brand-white/10 px-6 py-4 focus:outline-none focus:border-brand-gold transition-colors text-sm"
                       value={shippingData.name}
-                      onChange={(e) => setShippingData({...shippingData, name: e.target.value})}
+                      onChange={(e) => setShippingData({...shippingData, name: e.target.value.slice(0, 60)})}
                     />
                   </div>
                   <div className="space-y-2">
@@ -776,10 +835,11 @@ export default function App() {
                     <input 
                       required
                       type="email" 
+                      maxLength={60}
                       placeholder="Ex: cr7@vitoria.pt"
                       className="w-full bg-brand-white/5 border border-brand-white/10 px-6 py-4 focus:outline-none focus:border-brand-gold transition-colors text-sm"
                       value={shippingData.email}
-                      onChange={(e) => setShippingData({...shippingData, email: e.target.value})}
+                      onChange={(e) => setShippingData({...shippingData, email: e.target.value.slice(0, 60)})}
                     />
                   </div>
                 </div>
@@ -789,10 +849,11 @@ export default function App() {
                   <input 
                     required
                     type="tel" 
+                    maxLength={20}
                     placeholder="+351 912 345 678"
                     className="w-full bg-brand-white/5 border border-brand-white/10 px-6 py-4 focus:outline-none focus:border-brand-gold transition-colors text-sm"
                     value={shippingData.phone}
-                    onChange={(e) => setShippingData({...shippingData, phone: e.target.value})}
+                    onChange={(e) => setShippingData({...shippingData, phone: e.target.value.slice(0, 20)})}
                   />
                 </div>
 
@@ -801,10 +862,11 @@ export default function App() {
                   <textarea 
                     required
                     rows={3}
+                    maxLength={60}
                     placeholder="Rua, Nº, Andar, Porta..."
                     className="w-full bg-brand-white/5 border border-brand-white/10 px-6 py-4 focus:outline-none focus:border-brand-gold transition-colors text-sm resize-none"
                     value={shippingData.address}
-                    onChange={(e) => setShippingData({...shippingData, address: e.target.value})}
+                    onChange={(e) => setShippingData({...shippingData, address: e.target.value.slice(0, 60)})}
                   />
                 </div>
 
@@ -814,9 +876,10 @@ export default function App() {
                     <input 
                       required
                       type="text" 
+                      maxLength={60}
                       className="w-full bg-brand-white/5 border border-brand-white/10 px-6 py-4 focus:outline-none focus:border-brand-gold transition-colors text-sm"
                       value={shippingData.city}
-                      onChange={(e) => setShippingData({...shippingData, city: e.target.value})}
+                      onChange={(e) => setShippingData({...shippingData, city: e.target.value.slice(0, 60)})}
                     />
                   </div>
                   <div className="space-y-2">
@@ -824,10 +887,11 @@ export default function App() {
                     <input 
                       required
                       type="text" 
+                      maxLength={10}
                       placeholder="0000-000"
                       className="w-full bg-brand-white/5 border border-brand-white/10 px-6 py-4 focus:outline-none focus:border-brand-gold transition-colors text-sm"
                       value={shippingData.zip}
-                      onChange={(e) => setShippingData({...shippingData, zip: e.target.value})}
+                      onChange={(e) => setShippingData({...shippingData, zip: e.target.value.slice(0, 10)})}
                     />
                   </div>
                 </div>
@@ -1017,9 +1081,17 @@ export default function App() {
                           </div>
                           <div className="flex justify-between items-center mt-2">
                             <div className="flex items-center gap-2 border border-brand-white/10 px-2 py-1">
-                              <button onClick={() => updateQuantity(item.product_id, item.quantity - 1)} className="text-[10px] hover:text-brand-gold">-</button>
-                              <span className="text-[10px] font-bold">{item.quantity}</span>
-                              <button onClick={() => updateQuantity(item.product_id, item.quantity + 1)} className="text-[10px] hover:text-brand-gold">+</button>
+                              <button
+                                onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
+                                className="w-6 h-6 flex items-center justify-center text-[12px] font-bold hover:text-brand-gold transition-colors cursor-pointer select-none"
+                                aria-label="Diminuir quantidade"
+                              >−</button>
+                              <span className="text-[10px] font-bold min-w-[20px] text-center">{item.quantity}</span>
+                              <button
+                                onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
+                                className="w-6 h-6 flex items-center justify-center text-[12px] font-bold hover:text-brand-gold transition-colors cursor-pointer select-none"
+                                aria-label="Aumentar quantidade"
+                              >+</button>
                             </div>
                             <p className="font-display font-bold text-brand-gold text-sm">€{(item.price_at_addition * item.quantity).toFixed(2)}</p>
                           </div>
