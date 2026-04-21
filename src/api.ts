@@ -10,8 +10,22 @@ export const api = axios.create({
   },
 });
 
+api.interceptors.request.use((config) => {
+  const sessionId = localStorage.getItem("cart_session_id");
+  if (sessionId) {
+    config.headers["X-Session-ID"] = sessionId;
+  }
+  return config;
+});
+
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const sessionId = response.headers["x-session-id"];
+    if (sessionId) {
+      localStorage.setItem("cart_session_id", sessionId);
+    }
+    return response;
+  },
   (error) => {
     const errorData = error.response?.data;
     if (errorData) {
