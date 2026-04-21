@@ -213,8 +213,15 @@ export default function App() {
         });
       }
       setIsCartOpen(true);
-    } catch (err) {
-      // Optimistic local add on API failure so UX is not broken
+    } catch (err: any) {
+      // If it's a business error (e.g. 400 Insufficient stock), don't add optimistically
+      const errorMsg = err.message || "";
+      if (errorMsg.includes("Insufficient stock")) {
+        alert("Desculpe, este produto não tem stock suficiente.");
+        return;
+      }
+
+      // For other errors (network etc), keep optimistic fallback
       setCart(prev => {
         const existing = prev.find(i => i.product_id === product.id);
         if (existing) {
@@ -241,43 +248,54 @@ export default function App() {
 
   const removeFromCart = async (productId: string) => {
     // Optimistic removal first for immediate UX response
+    const previousCart = [...cart];
     setCart(prev => prev.filter(i => i.product_id !== productId));
+    
     try {
-      const updatedCart = await cartApi.removeItem(productId);
-      if (updatedCart?.items) {
-        setCart(updatedCart.items.map(mapBackendCartItem));
-      }
-    } catch (err) {
-      // Refresh cart from server to handle session mismatch
-      try {
-        const cartData = await cartApi.getCart();
-        setCart((cartData.items || []).map(mapBackendCartItem));
-      } catch {
-        console.warn("Remove item API failed – item removed locally:", err);
+      await cartApi.removeItem(productId);
+    } catch (err: any) {
+      // If it's a 404, it means it's already gone from server, so we're good.
+      // Only refresh if it's NOT a 404 (e.g. session error)
+      if (!err.message?.includes("404") && !err.message?.includes("not found")) {
+        try {
+          const cartData = await cartApi.getCart();
+          setCart((cartData.items || []).map(mapBackendCartItem));
+        } catch {
+          // If even refresh fails, revert to previous state to avoid empty cart
+          setCart(previousCart);
+        }
       }
     }
   };
 
   const updateQuantity = async (productId: string, quantity: number) => {
     if (quantity <= 0) return removeFromCart(productId);
+    
+    // Save current state for revert
+    const previousCart = [...cart];
+    
     // Optimistic update for immediate UI response
     setCart(prev =>
       prev.map(i =>
         i.product_id === productId ? { ...i, quantity } : i
       )
     );
+
     try {
-      const updatedCart = await cartApi.updateItem(productId, quantity);
-      if (updatedCart?.items) {
-        setCart(updatedCart.items.map(mapBackendCartItem));
+      await cartApi.updateItem(productId, quantity);
+    } catch (err: any) {
+      const errorMsg = err.message || "";
+      if (errorMsg.includes("Insufficient stock")) {
+        alert("Desculpe, não há stock suficiente para esta quantidade.");
       }
-    } catch (err) {
-      // Refresh cart from server to handle session mismatch
+      
+      // Revert to server state
       try {
         const cartData = await cartApi.getCart();
         setCart((cartData.items || []).map(mapBackendCartItem));
       } catch {
-        console.warn("Update quantity API failed – using local state:", err);
+        // If even refresh fails, revert to previous local state
+        setCart(previousCart);
       }
     }
   };
