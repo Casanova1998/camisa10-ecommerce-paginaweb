@@ -40,7 +40,8 @@ const mapBackendProduct = (p: any): Product => ({
 
 const mapBackendCartItem = (item: any) => ({
   ...item,
-  price_at_addition: item.price || 0,
+  product_id: item.product_id || item.productId || item.id,
+  price_at_addition: item.price || item.price_at_addition || 0,
   product_name: item.product_name || 'Produto',
 });
 
@@ -155,7 +156,7 @@ export default function App() {
       try {
         const productData = await catalogApi.getProducts();
         setProducts(productData.items.map(mapBackendProduct));
-        
+
         const mostSoldData = await catalogApi.getMostSold();
         setMostSold(Array.isArray(mostSoldData) ? mostSoldData.map(mapBackendProduct) : []);
 
@@ -247,13 +248,23 @@ export default function App() {
   };
 
   const removeFromCart = async (productId: string) => {
+    if (!productId) {
+      console.warn("Attempted to remove item with undefined productId", { cart });
+      return;
+    }
+
     // Optimistic removal first for immediate UX response
     const previousCart = [...cart];
-    setCart(prev => prev.filter(i => i.product_id !== productId));
-    
+    setCart(prev => {
+      const filtered = prev.filter(i => i.product_id !== productId);
+      console.log(`Cart filter: removing ${productId}. Count before: ${prev.length}, after: ${filtered.length}`);
+      return filtered;
+    });
+
     try {
       await cartApi.removeItem(productId);
     } catch (err: any) {
+      console.error("Failed to remove item from server cart", err);
       // If it's a 404, it means it's already gone from server, so we're good.
       // Only refresh if it's NOT a 404 (e.g. session error)
       if (!err.message?.includes("404") && !err.message?.includes("not found")) {
@@ -269,26 +280,33 @@ export default function App() {
   };
 
   const updateQuantity = async (productId: string, quantity: number) => {
+    if (!productId) {
+      console.warn("Attempted to update quantity with undefined productId", { cart });
+      return;
+    }
     if (quantity <= 0) return removeFromCart(productId);
-    
+
     // Save current state for revert
     const previousCart = [...cart];
-    
+
     // Optimistic update for immediate UI response
-    setCart(prev =>
-      prev.map(i =>
+    setCart(prev => {
+      const updated = prev.map(i =>
         i.product_id === productId ? { ...i, quantity } : i
-      )
-    );
+      );
+      console.log(`Cart update: ${productId} to ${quantity}.`);
+      return updated;
+    });
 
     try {
       await cartApi.updateItem(productId, quantity);
     } catch (err: any) {
+      console.error("Failed to update item quantity on server", err);
       const errorMsg = err.message || "";
       if (errorMsg.includes("Insufficient stock")) {
         alert("Desculpe, não há stock suficiente para esta quantidade.");
       }
-      
+
       // Revert to server state
       try {
         const cartData = await cartApi.getCart();
@@ -319,7 +337,7 @@ export default function App() {
         setCheckoutStep('success');
         // Clear cart locally since order is created
         setCart([]);
-        await cartApi.clearCart(); 
+        await cartApi.clearCart();
       }
     } catch (err) {
       console.error("Checkout error:", err);
@@ -346,8 +364,8 @@ export default function App() {
               onClick={() => setSelectedProduct(product)}
             >
               <div className="relative aspect-[4/5] overflow-hidden bg-[#0f0f0f] border border-brand-white/5 shadow-2xl transition-all duration-500 group-hover:shadow-brand-gold/10">
-                <img 
-                  src={product.image || undefined} 
+                <img
+                  src={product.image || undefined}
                   alt={product.name}
                   className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                   referrerPolicy="no-referrer"
@@ -369,9 +387,9 @@ export default function App() {
   );
 
   const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         product.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = activeCategory === 'Todos' || product.category === activeCategory;
     return matchesSearch && matchesCategory;
   });
@@ -381,7 +399,7 @@ export default function App() {
       {/* Cookie Consent Banner */}
       <AnimatePresence>
         {showCookieConsent && (
-          <motion.div 
+          <motion.div
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
@@ -395,19 +413,19 @@ export default function App() {
                 {cookiePolicy.title}
               </h3>
             </div>
-            
+
             <p className="text-[11px] leading-relaxed text-brand-white/70 mb-8">
               {cookiePolicy.description}
             </p>
 
             <div className="flex flex-col gap-3">
-              <button 
+              <button
                 onClick={() => handleCookieConsent('all')}
                 className="w-full bg-brand-gold text-brand-black py-3 font-bold uppercase tracking-[0.2em] text-[10px] hover:bg-brand-white transition-colors"
               >
                 {cookiePolicy.buttons.acceptAll}
               </button>
-              <button 
+              <button
                 onClick={() => handleCookieConsent('essential')}
                 className="w-full border border-brand-white/10 text-brand-white py-3 font-bold uppercase tracking-[0.2em] text-[10px] hover:bg-brand-white/5 transition-colors"
               >
@@ -434,7 +452,7 @@ export default function App() {
                 <span className="text-[8px] uppercase tracking-[0.4em] text-brand-gold font-bold ml-10">Vista a Lenda.</span>
               </div>
             </div>
-            
+
             <div className="hidden md:flex gap-8 text-sm font-medium uppercase tracking-widest">
               <button onClick={() => setIsEquipamentosOpen(true)} className="hover:text-brand-gold transition-colors uppercase tracking-widest cursor-pointer">Equipamentos</button>
               <button onClick={() => setIsRetroOpen(true)} className="hover:text-brand-gold transition-colors uppercase tracking-widest cursor-pointer">Retro</button>
@@ -452,7 +470,7 @@ export default function App() {
                   className="w-full bg-brand-white/5 border border-brand-white/10 rounded-full py-1.5 px-4 text-xs focus:outline-none focus:border-brand-gold transition-colors"
                 />
                 {searchQuery && (
-                  <button 
+                  <button
                     onClick={() => setSearchQuery('')}
                     className="absolute right-3 text-brand-white/40 hover:text-brand-white"
                   >
@@ -460,15 +478,15 @@ export default function App() {
                   </button>
                 )}
               </div>
-              
-              <button 
+
+              <button
                 onClick={() => setIsSearchVisible(!isSearchVisible)}
                 className={`p-2 transition-colors ${isSearchVisible ? 'text-brand-gold' : 'hover:text-brand-gold'}`}
               >
                 <Search size={22} />
               </button>
 
-              <button 
+              <button
                 onClick={() => setIsCartOpen(true)}
                 className="relative p-2 hover:text-brand-gold transition-colors"
               >
@@ -487,203 +505,202 @@ export default function App() {
       {checkoutStep === 'home' ? (
         <>
 
-      {/* Hero Section */}
-      <section className="relative h-screen flex items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 z-0">
-          <img 
-            src="https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&q=80&w=1920" 
-            alt="Stadium Background"
-            className="w-full h-full object-cover opacity-40"
-            referrerPolicy="no-referrer"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-brand-black/40 via-transparent to-brand-black" />
-        </div>
-
-        <div className="relative z-10 text-center px-6">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8 }}
-          >
-            <div className="flex justify-center mb-8">
-              <div className="relative">
-                <div className="w-24 h-24 md:w-32 md:h-32 bg-brand-gold rounded-sm flex items-center justify-center text-brand-black text-4xl md:text-6xl font-black italic shadow-2xl">
-                  10
-                </div>
-                <div className="absolute -bottom-4 -right-4 w-12 h-12 md:w-16 md:h-16 bg-brand-white rounded-full flex items-center justify-center border-4 border-brand-navy shadow-xl">
-                  <Goal className="text-brand-navy" size={24} />
-                </div>
-              </div>
+          {/* Hero Section */}
+          <section className="relative h-screen flex items-center justify-center overflow-hidden">
+            <div className="absolute inset-0 z-0">
+              <img
+                src="https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&q=80&w=1920"
+                alt="Stadium Background"
+                className="w-full h-full object-cover opacity-40"
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-brand-black/40 via-transparent to-brand-black" />
             </div>
-            <span className="inline-block px-4 py-1 border border-brand-gold text-brand-gold text-[10px] font-bold uppercase tracking-[0.3em] mb-6">
-              A Marca dos Campeões
-            </span>
-            <h1 className="font-display text-6xl md:text-9xl font-bold tracking-tighter mb-4 leading-none">
-              CAMISA 10
-            </h1>
-            <p className="text-brand-white/50 text-sm uppercase tracking-[0.5em] mb-12 font-bold">Vista a Lenda.</p>
-            <div className="flex flex-col md:flex-row gap-4 justify-center items-center">
-              <a 
-                href="#products" 
-                className="group relative px-10 py-4 bg-brand-gold text-brand-black font-bold uppercase tracking-widest overflow-hidden transition-all hover:bg-brand-white hover:scale-105"
-              >
-                <span className="relative z-10">Explorar Loja</span>
-              </a>
-              <button 
-                onClick={() => setIsPrimeOpen(true)}
-                className="px-10 py-4 border border-brand-white/20 hover:border-brand-gold hover:bg-brand-gold hover:text-brand-black transition-all font-bold uppercase tracking-widest cursor-pointer"
-              >
-                Novidades
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      </section>
 
-      {/* Marquee */}
-      <div className="marquee-container bg-brand-white text-brand-black font-display font-bold text-sm uppercase tracking-widest">
-        <div className="marquee-content">
-          {[...Array(10)].map((_, i) => (
-            <span key={i} className="mx-12 flex items-center gap-4">
-              <Activity size={16} /> CAMISA 10 FOOTBALL STORE — VISTA A LENDA — EQUIPAMENTO DE ELITE — RETRO CLASSICS — 
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {/* Products Grid */}
-      <section id="products" className="max-w-7xl mx-auto px-6 py-32">
-        <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
-          <div>
-            <div className="flex items-center gap-2 text-brand-gold mb-2">
-              <Activity size={16} />
-              <span className="text-[10px] font-bold uppercase tracking-widest">Em Destaque</span>
-            </div>
-            <h2 className="font-display text-4xl md:text-6xl font-bold tracking-tighter">COLEÇÃO 2026</h2>
-          </div>
-          <div className="flex gap-6 overflow-x-auto pb-2 w-full md:w-auto">
-            {['Todos', 'Retro', 'Equipamento', 'Seleção', 'Novidades', 'Acessórios'].map((cat) => (
-              <button 
-                key={cat} 
-                onClick={() => setActiveCategory(cat)}
-                className={`text-[10px] font-bold uppercase tracking-[0.2em] whitespace-nowrap transition-colors border-b-2 pb-1 ${
-                  activeCategory === cat ? 'text-brand-gold border-brand-gold' : 'text-brand-white/50 border-transparent hover:text-brand-gold'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-12">
-          {filteredProducts.length > 0 ? (
-            filteredProducts.map((product, idx) => (
+            <div className="relative z-10 text-center px-6">
               <motion.div
-                key={product.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: (idx % 4) * 0.1 }}
-                className="group cursor-pointer"
-                onClick={() => setSelectedProduct(product)}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.8 }}
               >
-                <div className="relative aspect-[4/5] overflow-hidden bg-[#0f0f0f] mb-4 border border-brand-white/5">
-                  <img 
-                    src={product.image} 
-                    alt={product.name}
-                    className={`w-full h-full object-cover transition-all duration-700 group-hover:scale-105 opacity-80 ${product.hoverImage ? 'group-hover:opacity-0' : ''}`}
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      if (product.hoverImage && target.src !== product.hoverImage) {
-                        target.src = product.hoverImage;
-                      }
-                    }}
-                  />
-                  {product.hoverImage && (
-                    <img 
-                      src={product.hoverImage} 
-                      alt={`${product.name} hover`}
-                      className="absolute inset-0 w-full h-full object-cover transition-all duration-700 scale-110 group-hover:scale-105 opacity-0 group-hover:opacity-100"
-                      referrerPolicy="no-referrer"
-                    />
-                  )}
-                  <div className="absolute inset-0 bg-brand-navy/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <div className="absolute bottom-0 left-0 w-full p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 z-10">
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        addToCart(product);
-                      }}
-                      className="w-full bg-brand-white text-brand-black py-3 font-bold uppercase text-[10px] tracking-widest hover:bg-brand-gold transition-colors"
-                    >
-                      Adicionar ao Carrinho
-                    </button>
-                  </div>
-                  <div className="absolute top-4 left-4 flex flex-col gap-2">
-                    <span className="text-[9px] font-bold uppercase tracking-widest bg-brand-gold text-brand-black px-2 py-1 w-fit">
-                      {product.category}
-                    </span>
-                    {product.status === 'promotion' && (
-                      <span className="text-[9px] font-bold uppercase tracking-widest bg-red-600 text-white px-2 py-1 w-fit animate-pulse">
-                        PROMOÇÃO
-                      </span>
-                    )}
+                <div className="flex justify-center mb-8">
+                  <div className="relative">
+                    <div className="w-24 h-24 md:w-32 md:h-32 bg-brand-gold rounded-sm flex items-center justify-center text-brand-black text-4xl md:text-6xl font-black italic shadow-2xl">
+                      10
+                    </div>
+                    <div className="absolute -bottom-4 -right-4 w-12 h-12 md:w-16 md:h-16 bg-brand-white rounded-full flex items-center justify-center border-4 border-brand-navy shadow-xl">
+                      <Goal className="text-brand-navy" size={24} />
+                    </div>
                   </div>
                 </div>
-                <div className="flex justify-between items-start px-1">
-                  <div>
-                    <h3 className="font-bold text-xs uppercase tracking-wider group-hover:text-brand-gold transition-colors">{product.name}</h3>
-                    <p className="text-brand-white/40 text-[9px] mt-1 uppercase tracking-widest">
-                      {product.status === 'promotion' ? 'Promoção Limitada' : 'Stock Limitado'}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end">
-                    {product.status === 'promotion' && product.promotionalPrice ? (
-                      <>
-                        <span className="text-brand-white/40 text-[10px] line-through">€{product.price.toFixed(2)}</span>
-                        <span className="font-display font-bold text-brand-gold">€{product.promotionalPrice.toFixed(2)}</span>
-                        <span className="text-red-500 text-[9px] font-bold mt-0.5">
-                          -{Math.round(((product.price - product.promotionalPrice) / product.price) * 100)}%
-                        </span>
-                      </>
-                    ) : (
-                      <span className="font-display font-bold text-brand-gold">€{product.price.toFixed(2)}</span>
-                    )}
-                  </div>
+                <span className="inline-block px-4 py-1 border border-brand-gold text-brand-gold text-[10px] font-bold uppercase tracking-[0.3em] mb-6">
+                  A Marca dos Campeões
+                </span>
+                <h1 className="font-display text-6xl md:text-9xl font-bold tracking-tighter mb-4 leading-none">
+                  CAMISA 10
+                </h1>
+                <p className="text-brand-white/50 text-sm uppercase tracking-[0.5em] mb-12 font-bold">Vista a Lenda.</p>
+                <div className="flex flex-col md:flex-row gap-4 justify-center items-center">
+                  <a
+                    href="#products"
+                    className="group relative px-10 py-4 bg-brand-gold text-brand-black font-bold uppercase tracking-widest overflow-hidden transition-all hover:bg-brand-white hover:scale-105"
+                  >
+                    <span className="relative z-10">Explorar Loja</span>
+                  </a>
+                  <button
+                    onClick={() => setIsPrimeOpen(true)}
+                    className="px-10 py-4 border border-brand-white/20 hover:border-brand-gold hover:bg-brand-gold hover:text-brand-black transition-all font-bold uppercase tracking-widest cursor-pointer"
+                  >
+                    Novidades
+                  </button>
                 </div>
               </motion.div>
-            ))
-          ) : (
-            <div className="col-span-full py-20 text-center">
-              <p className="text-brand-white/40 uppercase tracking-[0.3em] text-sm">Nenhum produto encontrado para "{searchQuery}"</p>
-              <button 
-                onClick={() => {
-                  setSearchQuery('');
-                  setActiveCategory('Todos');
-                }}
-                className="mt-6 text-brand-gold font-bold uppercase tracking-widest text-[10px] hover:text-brand-white transition-colors"
-              >
-                Limpar Filtros
-              </button>
             </div>
-          )}
-        </div>
-      </section>
+          </section>
 
-      {/* Most Sold Section */}
-      {mostSold.length > 0 && (
-        <section className="bg-brand-white/5 py-24 mb-10">
-          <div className="max-w-7xl mx-auto px-6">
-            <div className="flex items-center gap-2 text-brand-gold mb-2">
-              <Trophy size={16} />
-              <span className="text-[10px] font-bold uppercase tracking-widest">Os Favoritos</span>
+          {/* Marquee */}
+          <div className="marquee-container bg-brand-white text-brand-black font-display font-bold text-sm uppercase tracking-widest">
+            <div className="marquee-content">
+              {[...Array(10)].map((_, i) => (
+                <span key={i} className="mx-12 flex items-center gap-4">
+                  <Activity size={16} /> CAMISA 10 FOOTBALL STORE — VISTA A LENDA — EQUIPAMENTO DE ELITE — RETRO CLASSICS —
+                </span>
+              ))}
             </div>
-            <h2 className="font-display text-4xl font-bold tracking-tighter mb-12">MAIS <span className="text-brand-gold">VENDIDOS</span></h2>
-            
-            <style>
-              {`
+          </div>
+
+          {/* Products Grid */}
+          <section id="products" className="max-w-7xl mx-auto px-6 py-32">
+            <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
+              <div>
+                <div className="flex items-center gap-2 text-brand-gold mb-2">
+                  <Activity size={16} />
+                  <span className="text-[10px] font-bold uppercase tracking-widest">Em Destaque</span>
+                </div>
+                <h2 className="font-display text-4xl md:text-6xl font-bold tracking-tighter">COLEÇÃO 2026</h2>
+              </div>
+              <div className="flex gap-6 overflow-x-auto pb-2 w-full md:w-auto">
+                {['Todos', 'Retro', 'Equipamento', 'Seleção', 'Novidades', 'Acessórios'].map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveCategory(cat)}
+                    className={`text-[10px] font-bold uppercase tracking-[0.2em] whitespace-nowrap transition-colors border-b-2 pb-1 ${activeCategory === cat ? 'text-brand-gold border-brand-gold' : 'text-brand-white/50 border-transparent hover:text-brand-gold'
+                      }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-12">
+              {filteredProducts.length > 0 ? (
+                filteredProducts.map((product, idx) => (
+                  <motion.div
+                    key={product.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: (idx % 4) * 0.1 }}
+                    className="group cursor-pointer"
+                    onClick={() => setSelectedProduct(product)}
+                  >
+                    <div className="relative aspect-[4/5] overflow-hidden bg-[#0f0f0f] mb-4 border border-brand-white/5">
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className={`w-full h-full object-cover transition-all duration-700 group-hover:scale-105 opacity-80 ${product.hoverImage ? 'group-hover:opacity-0' : ''}`}
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          if (product.hoverImage && target.src !== product.hoverImage) {
+                            target.src = product.hoverImage;
+                          }
+                        }}
+                      />
+                      {product.hoverImage && (
+                        <img
+                          src={product.hoverImage}
+                          alt={`${product.name} hover`}
+                          className="absolute inset-0 w-full h-full object-cover transition-all duration-700 scale-110 group-hover:scale-105 opacity-0 group-hover:opacity-100"
+                          referrerPolicy="no-referrer"
+                        />
+                      )}
+                      <div className="absolute inset-0 bg-brand-navy/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className="absolute bottom-0 left-0 w-full p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 z-10">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            addToCart(product);
+                          }}
+                          className="w-full bg-brand-white text-brand-black py-3 font-bold uppercase text-[10px] tracking-widest hover:bg-brand-gold transition-colors"
+                        >
+                          Adicionar ao Carrinho
+                        </button>
+                      </div>
+                      <div className="absolute top-4 left-4 flex flex-col gap-2">
+                        <span className="text-[9px] font-bold uppercase tracking-widest bg-brand-gold text-brand-black px-2 py-1 w-fit">
+                          {product.category}
+                        </span>
+                        {product.status === 'promotion' && (
+                          <span className="text-[9px] font-bold uppercase tracking-widest bg-red-600 text-white px-2 py-1 w-fit animate-pulse">
+                            PROMOÇÃO
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-start px-1">
+                      <div>
+                        <h3 className="font-bold text-xs uppercase tracking-wider group-hover:text-brand-gold transition-colors">{product.name}</h3>
+                        <p className="text-brand-white/40 text-[9px] mt-1 uppercase tracking-widest text-red-600">
+                          {product.status === 'out_of_stock' ? 'Stock esgotado' : ''}
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-end">
+                        {product.status === 'promotion' && product.promotionalPrice ? (
+                          <>
+                            <span className="text-brand-white/40 text-[10px] line-through">€{product.price.toFixed(2)}</span>
+                            <span className="font-display font-bold text-brand-gold">€{product.promotionalPrice.toFixed(2)}</span>
+                            <span className="text-red-500 text-[9px] font-bold mt-0.5">
+                              -{Math.round(((product.price - product.promotionalPrice) / product.price) * 100)}%
+                            </span>
+                          </>
+                        ) : (
+                          <span className="font-display font-bold text-brand-gold">€{product.price.toFixed(2)}</span>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                ))
+              ) : (
+                <div className="col-span-full py-20 text-center">
+                  <p className="text-brand-white/40 uppercase tracking-[0.3em] text-sm">Nenhum produto encontrado para "{searchQuery}"</p>
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setActiveCategory('Todos');
+                    }}
+                    className="mt-6 text-brand-gold font-bold uppercase tracking-widest text-[10px] hover:text-brand-white transition-colors"
+                  >
+                    Limpar Filtros
+                  </button>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Most Sold Section */}
+          {mostSold.length > 0 && (
+            <section className="bg-brand-white/5 py-24 mb-10">
+              <div className="max-w-7xl mx-auto px-6">
+                <div className="flex items-center gap-2 text-brand-gold mb-2">
+                  <Trophy size={16} />
+                  <span className="text-[10px] font-bold uppercase tracking-widest">Os Favoritos</span>
+                </div>
+                <h2 className="font-display text-4xl font-bold tracking-tighter mb-12">MAIS <span className="text-brand-gold">VENDIDOS</span></h2>
+
+                <style>
+                  {`
                 @keyframes scroll-infinite {
                   0% { transform: translateX(0); }
                   100% { transform: translateX(-50%); }
@@ -695,379 +712,379 @@ export default function App() {
                   animation-play-state: paused;
                 }
               `}
-            </style>
-            <div className="relative overflow-hidden group/slider">
-              <div 
-                className="flex gap-8 animate-scroll"
-                style={{ width: "fit-content" }}
-              >
-                {[...mostSold, ...mostSold].map((product, idx) => (
-                  <div 
-                    key={`most-sold-${product.id}-${idx}`}
-                    onClick={() => setSelectedProduct(product)}
-                    className="bg-brand-black border border-brand-white/10 p-4 flex gap-6 group cursor-pointer hover:border-brand-gold transition-colors min-w-[350px]"
+                </style>
+                <div className="relative overflow-hidden group/slider">
+                  <div
+                    className="flex gap-8 animate-scroll"
+                    style={{ width: "fit-content" }}
                   >
-                    <div className="w-24 h-32 overflow-hidden bg-[#0f0f0f] shrink-0">
-                      <img 
-                        src={product.image || undefined} 
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          if (product.hoverImage && target.src !== product.hoverImage) {
-                            target.src = product.hoverImage;
-                          }
-                        }}
+                    {[...mostSold, ...mostSold].map((product, idx) => (
+                      <div
+                        key={`most-sold-${product.id}-${idx}`}
+                        onClick={() => setSelectedProduct(product)}
+                        className="bg-brand-black border border-brand-white/10 p-4 flex gap-6 group cursor-pointer hover:border-brand-gold transition-colors min-w-[350px]"
+                      >
+                        <div className="w-24 h-32 overflow-hidden bg-[#0f0f0f] shrink-0">
+                          <img
+                            src={product.image || undefined}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              if (product.hoverImage && target.src !== product.hoverImage) {
+                                target.src = product.hoverImage;
+                              }
+                            }}
+                          />
+                        </div>
+                        <div className="flex flex-col justify-center">
+                          <h3 className="font-bold text-[10px] uppercase tracking-wider mb-2">{product.name}</h3>
+                          {product.status === 'promotion' && product.promotionalPrice ? (
+                            <div className="flex items-center gap-3">
+                              <p className="text-brand-gold font-display font-bold text-lg">€{product.promotionalPrice.toFixed(2)}</p>
+                              <p className="text-brand-white/40 text-[10px] line-through">€{product.price.toFixed(2)}</p>
+                            </div>
+                          ) : (
+                            <p className="text-brand-gold font-display font-bold text-lg">€{product.price.toFixed(2)}</p>
+                          )}
+                          <button className="mt-4 text-[9px] font-black uppercase tracking-widest text-brand-white/40 group-hover:text-brand-gold transition-colors text-left">Ver Detalhes</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+        </>
+      ) : checkoutStep === 'checkout' ? (
+        <div className="min-h-screen pt-20 flex flex-col">
+          <div className="max-w-7xl mx-auto px-6 w-full py-20 flex-1">
+            <div className="flex items-center gap-4 mb-12">
+              <button
+                onClick={() => setCheckoutStep('home')}
+                className="p-4 bg-brand-white/5 hover:bg-brand-gold hover:text-brand-black transition-all rounded-full"
+              >
+                <ChevronLeft size={24} />
+              </button>
+              <h1 className="font-display text-5xl md:text-7xl font-bold tracking-tighter uppercase italic">CHECKOUT</h1>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+              <div className="lg:col-span-2 space-y-8">
+                <div className="bg-brand-white/5 border border-brand-white/10 overflow-hidden">
+                  <table className="w-full text-left">
+                    <thead className="border-b border-brand-white/10 bg-brand-white/5">
+                      <tr>
+                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-brand-white/40">Produto</th>
+                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-brand-white/40 text-center">Quantidade</th>
+                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-brand-white/40">Preço</th>
+                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-brand-white/40">Acção</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-brand-white/10">
+                      {cart.map((item) => {
+                        const productInfo = products.find(p => p.id === item.product_id);
+                        return (
+                          <motion.tr key={item.product_id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                            <td className="px-6 py-8">
+                              <div className="flex gap-6">
+                                <div className="w-16 h-20 bg-[#0f0f0f] shrink-0">
+                                  {productInfo?.image && (
+                                    <img src={productInfo.image} alt={item.product_name} className="w-full h-full object-cover" />
+                                  )}
+                                </div>
+                                <div>
+                                  <h3 className="text-xs font-bold uppercase tracking-widest mb-1 text-brand-white">{item.product_name}</h3>
+                                  <p className="text-[10px] text-brand-white/40 uppercase">Tamanho: Único</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-8">
+                              <div className="flex items-center justify-center gap-4">
+                                <button
+                                  onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
+                                  className="w-8 h-8 rounded-full border border-brand-white/10 flex items-center justify-center hover:border-brand-gold hover:text-brand-gold transition-colors cursor-pointer"
+                                >
+                                  <Minus size={12} />
+                                </button>
+                                <span className="font-display font-bold text-sm min-w-[20px] text-center text-brand-white">{item.quantity}</span>
+                                <button
+                                  onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
+                                  className="w-8 h-8 rounded-full border border-brand-white/10 flex items-center justify-center hover:border-brand-gold hover:text-brand-gold transition-colors cursor-pointer"
+                                >
+                                  <Plus size={12} />
+                                </button>
+                              </div>
+                            </td>
+                            <td className="px-6 py-8 font-display font-bold text-brand-gold">€{(item.price_at_addition * item.quantity).toFixed(2)}</td>
+                            <td className="px-6 py-8">
+                              <button
+                                onClick={() => removeFromCart(item.product_id)}
+                                className="p-3 text-brand-white/20 hover:text-brand-gold hover:bg-brand-gold/10 transition-all rounded-full cursor-pointer"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </td>
+                          </motion.tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {cart.length === 0 && (
+                    <div className="py-20 text-center text-brand-white/20 uppercase tracking-widest text-xs">
+                      Nada por aqui... <button onClick={() => setCheckoutStep('home')} className="text-brand-gold underline ml-2">Explorar Loja</button>
+                    </div>
+                  )}
+                </div>
+
+                <RecommendedSection />
+              </div>
+
+              <div className="space-y-6">
+                <div className="bg-brand-white/5 border border-brand-white/10 p-8 space-y-8">
+                  <h2 className="font-display text-2xl font-bold tracking-tighter uppercase italic">Resumo do Pedido</h2>
+
+                  <div className="space-y-4">
+                    <div className="flex justify-between text-sm uppercase tracking-widest text-brand-white/40">
+                      <span>Subtotal</span>
+                      <span className="text-brand-white font-bold">€{cartTotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm uppercase tracking-widest text-brand-white/40">
+                      <span>Envio</span>
+                      <span className="text-brand-gold font-bold italic">Grátis</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-8 border-t border-brand-white/10">
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-brand-gold mb-3">Código Promocional</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={couponCode}
+                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                        placeholder="Digite o código"
+                        className="bg-brand-white/5 border border-brand-white/10 px-4 py-3 flex-1 text-xs focus:outline-none focus:border-brand-gold uppercase tracking-widest"
                       />
                     </div>
-                    <div className="flex flex-col justify-center">
-                      <h3 className="font-bold text-[10px] uppercase tracking-wider mb-2">{product.name}</h3>
-                      {product.status === 'promotion' && product.promotionalPrice ? (
-                        <div className="flex items-center gap-3">
-                          <p className="text-brand-gold font-display font-bold text-lg">€{product.promotionalPrice.toFixed(2)}</p>
-                          <p className="text-brand-white/40 text-[10px] line-through">€{product.price.toFixed(2)}</p>
-                        </div>
-                      ) : (
-                        <p className="text-brand-gold font-display font-bold text-lg">€{product.price.toFixed(2)}</p>
-                      )}
-                      <button className="mt-4 text-[9px] font-black uppercase tracking-widest text-brand-white/40 group-hover:text-brand-gold transition-colors text-left">Ver Detalhes</button>
+                    {couponError && (
+                      <p className="text-red-500 text-[10px] mt-2">{couponError}</p>
+                    )}
+                    {discountInfo && (
+                      <p className="text-green-500 text-[10px] mt-2">
+                        {discountInfo.type === 'percent' ? `${discountInfo.value}%` : `€${discountInfo.value.toFixed(2)}`} de desconto aplicado
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="pt-8 border-t border-brand-white/10 flex justify-between items-end">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-brand-white/40">Total</span>
+                    <span className="font-display text-4xl font-bold text-brand-gold leading-none">€{(discountInfo ? discountInfo.finalTotal : cartTotal).toFixed(2)}</span>
+                  </div>
+
+                  <button
+                    disabled={cart.length === 0 || isSubmitting}
+                    onClick={handleCheckout}
+                    className="w-full bg-brand-gold text-brand-black px-8 py-5 font-bold uppercase tracking-[0.2em] text-xs hover:bg-brand-white disabled:opacity-20 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-4"
+                  >
+                    {isSubmitting ? 'A Processar...' : 'Continuar'} <ChevronRight size={18} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : checkoutStep === 'shipping' ? (
+        <div className="min-h-screen pt-20">
+          <div className="max-w-7xl mx-auto px-6 py-20">
+            <div className="flex items-center gap-4 mb-12">
+              <button
+                onClick={() => setCheckoutStep('checkout')}
+                className="p-4 bg-brand-white/5 hover:bg-brand-gold hover:text-brand-black transition-all rounded-full"
+              >
+                <ChevronLeft size={24} />
+              </button>
+              <h1 className="font-display text-5xl md:text-7xl font-bold tracking-tighter uppercase italic">Dados de <span className="text-brand-gold">Envio</span></h1>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-20">
+              <div className="space-y-12">
+                <form className="space-y-8" onSubmit={(e) => { e.preventDefault(); handleFinalize(); }}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">Nome Completo</label>
+                      <input
+                        required
+                        type="text"
+                        maxLength={60}
+                        placeholder="Ex: Cristiano Ronaldo"
+                        className="w-full bg-brand-white/5 border border-brand-white/10 px-6 py-4 focus:outline-none focus:border-brand-gold transition-colors text-sm"
+                        value={shippingData.name}
+                        onChange={(e) => setShippingData({ ...shippingData, name: e.target.value.slice(0, 60) })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">E-mail</label>
+                      <input
+                        required
+                        type="email"
+                        maxLength={60}
+                        placeholder="Ex: cr7@vitoria.pt"
+                        className="w-full bg-brand-white/5 border border-brand-white/10 px-6 py-4 focus:outline-none focus:border-brand-gold transition-colors text-sm"
+                        value={shippingData.email}
+                        onChange={(e) => setShippingData({ ...shippingData, email: e.target.value.slice(0, 60) })}
+                      />
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-      </>
-    ) : checkoutStep === 'checkout' ? (
-      <div className="min-h-screen pt-20 flex flex-col">
-        <div className="max-w-7xl mx-auto px-6 w-full py-20 flex-1">
-          <div className="flex items-center gap-4 mb-12">
-            <button 
-              onClick={() => setCheckoutStep('home')}
-              className="p-4 bg-brand-white/5 hover:bg-brand-gold hover:text-brand-black transition-all rounded-full"
-            >
-              <ChevronLeft size={24} />
-            </button>
-            <h1 className="font-display text-5xl md:text-7xl font-bold tracking-tighter uppercase italic">CHECKOUT</h1>
-          </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-            <div className="lg:col-span-2 space-y-8">
-              <div className="bg-brand-white/5 border border-brand-white/10 overflow-hidden">
-                <table className="w-full text-left">
-                  <thead className="border-b border-brand-white/10 bg-brand-white/5">
-                    <tr>
-                      <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-brand-white/40">Produto</th>
-                      <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-brand-white/40 text-center">Quantidade</th>
-                      <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-brand-white/40">Preço</th>
-                      <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-brand-white/40">Acção</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-brand-white/10">
-                    {cart.map((item) => {
-                      const productInfo = products.find(p => p.id === item.product_id);
-                      return (
-                        <motion.tr key={item.product_id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                          <td className="px-6 py-8">
-                            <div className="flex gap-6">
-                              <div className="w-16 h-20 bg-[#0f0f0f] shrink-0">
-                                {productInfo?.image && (
-                                  <img src={productInfo.image} alt={item.product_name} className="w-full h-full object-cover" />
-                                )}
-                              </div>
-                              <div>
-                                <h3 className="text-xs font-bold uppercase tracking-widest mb-1 text-brand-white">{item.product_name}</h3>
-                                <p className="text-[10px] text-brand-white/40 uppercase">Tamanho: Único</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-8">
-                            <div className="flex items-center justify-center gap-4">
-                              <button 
-                                onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
-                                className="w-8 h-8 rounded-full border border-brand-white/10 flex items-center justify-center hover:border-brand-gold hover:text-brand-gold transition-colors cursor-pointer"
-                              >
-                                <Minus size={12} />
-                              </button>
-                              <span className="font-display font-bold text-sm min-w-[20px] text-center text-brand-white">{item.quantity}</span>
-                              <button 
-                                onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
-                                className="w-8 h-8 rounded-full border border-brand-white/10 flex items-center justify-center hover:border-brand-gold hover:text-brand-gold transition-colors cursor-pointer"
-                              >
-                                <Plus size={12} />
-                              </button>
-                            </div>
-                          </td>
-                          <td className="px-6 py-8 font-display font-bold text-brand-gold">€{(item.price_at_addition * item.quantity).toFixed(2)}</td>
-                          <td className="px-6 py-8">
-                            <button 
-                              onClick={() => removeFromCart(item.product_id)}
-                              className="p-3 text-brand-white/20 hover:text-brand-gold hover:bg-brand-gold/10 transition-all rounded-full cursor-pointer"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </td>
-                        </motion.tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                {cart.length === 0 && (
-                  <div className="py-20 text-center text-brand-white/20 uppercase tracking-widest text-xs">
-                    Nada por aqui... <button onClick={() => setCheckoutStep('home')} className="text-brand-gold underline ml-2">Explorar Loja</button>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">Telemóvel</label>
+                    <input
+                      required
+                      type="tel"
+                      maxLength={20}
+                      placeholder="+351 912 345 678"
+                      className="w-full bg-brand-white/5 border border-brand-white/10 px-6 py-4 focus:outline-none focus:border-brand-gold transition-colors text-sm"
+                      value={shippingData.phone}
+                      onChange={(e) => setShippingData({ ...shippingData, phone: e.target.value.slice(0, 20) })}
+                    />
                   </div>
-                )}
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">Morada Completa</label>
+                    <textarea
+                      required
+                      rows={3}
+                      maxLength={60}
+                      placeholder="Rua, Nº, Andar, Porta..."
+                      className="w-full bg-brand-white/5 border border-brand-white/10 px-6 py-4 focus:outline-none focus:border-brand-gold transition-colors text-sm resize-none"
+                      value={shippingData.address}
+                      onChange={(e) => setShippingData({ ...shippingData, address: e.target.value.slice(0, 60) })}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-8">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">Cidade</label>
+                      <input
+                        required
+                        type="text"
+                        maxLength={60}
+                        className="w-full bg-brand-white/5 border border-brand-white/10 px-6 py-4 focus:outline-none focus:border-brand-gold transition-colors text-sm"
+                        value={shippingData.city}
+                        onChange={(e) => setShippingData({ ...shippingData, city: e.target.value.slice(0, 60) })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">Código Postal</label>
+                      <input
+                        required
+                        type="text"
+                        maxLength={10}
+                        placeholder="0000-000"
+                        className="w-full bg-brand-white/5 border border-brand-white/10 px-6 py-4 focus:outline-none focus:border-brand-gold transition-colors text-sm"
+                        value={shippingData.zip}
+                        onChange={(e) => setShippingData({ ...shippingData, zip: e.target.value.slice(0, 10) })}
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full bg-brand-gold text-brand-black px-8 py-5 font-bold uppercase tracking-[0.2em] text-xs hover:bg-brand-white transition-all shadow-[0_0_20px_rgba(231,186,76,0.3)] hover:shadow-[0_0_30px_rgba(231,186,76,0.5)] flex items-center justify-center gap-4"
+                  >
+                    {isSubmitting ? 'A Finalizar...' : 'Finalizar Pedido'} <Package size={18} />
+                  </button>
+                </form>
               </div>
 
-              <RecommendedSection />
-            </div>
-
-            <div className="space-y-6">
-              <div className="bg-brand-white/5 border border-brand-white/10 p-8 space-y-8">
-                <h2 className="font-display text-2xl font-bold tracking-tighter uppercase italic">Resumo do Pedido</h2>
-                
+              <div className="bg-brand-white/5 border border-brand-white/10 p-12 h-fit space-y-8 sticky top-32">
+                <h3 className="text-xl font-bold uppercase tracking-[0.2em] italic">Resumo Final</h3>
                 <div className="space-y-4">
-                  <div className="flex justify-between text-sm uppercase tracking-widest text-brand-white/40">
-                    <span>Subtotal</span>
-                    <span className="text-brand-white font-bold">€{cartTotal.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm uppercase tracking-widest text-brand-white/40">
-                    <span>Envio</span>
-                    <span className="text-brand-gold font-bold italic">Grátis</span>
-                  </div>
-                </div>
-
-                <div className="pt-8 border-t border-brand-white/10">
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-brand-gold mb-3">Código Promocional</label>
-                  <div className="flex gap-2">
-                    <input 
-                      type="text" 
-                      value={couponCode}
-                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                      placeholder="Digite o código"
-                      className="bg-brand-white/5 border border-brand-white/10 px-4 py-3 flex-1 text-xs focus:outline-none focus:border-brand-gold uppercase tracking-widest"
-                    />
-                  </div>
-                  {couponError && (
-                    <p className="text-red-500 text-[10px] mt-2">{couponError}</p>
-                  )}
-                  {discountInfo && (
-                    <p className="text-green-500 text-[10px] mt-2">
-                      {discountInfo.type === 'percent' ? `${discountInfo.value}%` : `€${discountInfo.value.toFixed(2)}`} de desconto aplicado
-                    </p>
+                  {cart.map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-xs opacity-60">
+                      <span>{item.product_name} x {item.quantity}</span>
+                      <span>€{(item.price_at_addition * item.quantity).toFixed(2)}</span>
+                    </div>
+                  ))}
+                  {discountInfo && discountInfo.discount > 0 && (
+                    <div className="flex justify-between items-center text-xs text-brand-gold">
+                      <span>Desconto ({discountInfo.code})</span>
+                      <span>- €{discountInfo.discount.toFixed(2)}</span>
+                    </div>
                   )}
                 </div>
-
                 <div className="pt-8 border-t border-brand-white/10 flex justify-between items-end">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-brand-white/40">Total</span>
-                  <span className="font-display text-4xl font-bold text-brand-gold leading-none">€{(discountInfo ? discountInfo.finalTotal : cartTotal).toFixed(2)}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-brand-white/40">Valor Total</span>
+                  <span className="font-display text-4xl font-bold text-brand-gold">€{(discountInfo ? discountInfo.finalTotal : cartTotal).toFixed(2)}</span>
                 </div>
-
-                <button 
-                  disabled={cart.length === 0 || isSubmitting}
-                  onClick={handleCheckout}
-                  className="w-full bg-brand-gold text-brand-black px-8 py-5 font-bold uppercase tracking-[0.2em] text-xs hover:bg-brand-white disabled:opacity-20 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-4"
-                >
-                  {isSubmitting ? 'A Processar...' : 'Continuar'} <ChevronRight size={18} />
-                </button>
               </div>
             </div>
           </div>
         </div>
-      </div>
-    ) : checkoutStep === 'shipping' ? (
-      <div className="min-h-screen pt-20">
-        <div className="max-w-7xl mx-auto px-6 py-20">
-          <div className="flex items-center gap-4 mb-12">
-            <button 
-              onClick={() => setCheckoutStep('checkout')}
-              className="p-4 bg-brand-white/5 hover:bg-brand-gold hover:text-brand-black transition-all rounded-full"
+      ) : checkoutStep === 'error' ? (
+        <div className="min-h-screen flex items-center justify-center text-center p-6">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="max-w-xl space-y-12"
+          >
+            <div className="w-24 h-24 bg-red-500 rounded-full flex items-center justify-center mx-auto text-brand-white shadow-[0_0_50px_rgba(239,68,68,0.5)]">
+              <AlertTriangle size={48} />
+            </div>
+            <div className="space-y-4">
+              <h1 className="font-display text-6xl font-bold tracking-tighter uppercase italic line-height-none">Erro no <span className="text-red-500 underline">Pagamento</span></h1>
+              <p className="text-brand-white/50 uppercase tracking-[0.2em] text-sm">Ocorreu um problema ao processar o seu pedido. Por favor, tente novamente.</p>
+            </div>
+            <button
+              onClick={() => setCheckoutStep('shipping')}
+              className="px-12 py-5 border border-brand-white text-brand-white hover:bg-brand-white hover:text-brand-black transition-all font-bold uppercase tracking-[0.2em] text-xs"
             >
-              <ChevronLeft size={24} />
+              Tentar Novamente
             </button>
-            <h1 className="font-display text-5xl md:text-7xl font-bold tracking-tighter uppercase italic">Dados de <span className="text-brand-gold">Envio</span></h1>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-20">
-            <div className="space-y-12">
-              <form className="space-y-8" onSubmit={(e) => { e.preventDefault(); handleFinalize(); }}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">Nome Completo</label>
-                    <input 
-                      required
-                      type="text" 
-                      maxLength={60}
-                      placeholder="Ex: Cristiano Ronaldo"
-                      className="w-full bg-brand-white/5 border border-brand-white/10 px-6 py-4 focus:outline-none focus:border-brand-gold transition-colors text-sm"
-                      value={shippingData.name}
-                      onChange={(e) => setShippingData({...shippingData, name: e.target.value.slice(0, 60)})}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">E-mail</label>
-                    <input 
-                      required
-                      type="email" 
-                      maxLength={60}
-                      placeholder="Ex: cr7@vitoria.pt"
-                      className="w-full bg-brand-white/5 border border-brand-white/10 px-6 py-4 focus:outline-none focus:border-brand-gold transition-colors text-sm"
-                      value={shippingData.email}
-                      onChange={(e) => setShippingData({...shippingData, email: e.target.value.slice(0, 60)})}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">Telemóvel</label>
-                  <input 
-                    required
-                    type="tel" 
-                    maxLength={20}
-                    placeholder="+351 912 345 678"
-                    className="w-full bg-brand-white/5 border border-brand-white/10 px-6 py-4 focus:outline-none focus:border-brand-gold transition-colors text-sm"
-                    value={shippingData.phone}
-                    onChange={(e) => setShippingData({...shippingData, phone: e.target.value.slice(0, 20)})}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">Morada Completa</label>
-                  <textarea 
-                    required
-                    rows={3}
-                    maxLength={60}
-                    placeholder="Rua, Nº, Andar, Porta..."
-                    className="w-full bg-brand-white/5 border border-brand-white/10 px-6 py-4 focus:outline-none focus:border-brand-gold transition-colors text-sm resize-none"
-                    value={shippingData.address}
-                    onChange={(e) => setShippingData({...shippingData, address: e.target.value.slice(0, 60)})}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-8">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">Cidade</label>
-                    <input 
-                      required
-                      type="text" 
-                      maxLength={60}
-                      className="w-full bg-brand-white/5 border border-brand-white/10 px-6 py-4 focus:outline-none focus:border-brand-gold transition-colors text-sm"
-                      value={shippingData.city}
-                      onChange={(e) => setShippingData({...shippingData, city: e.target.value.slice(0, 60)})}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-brand-gold">Código Postal</label>
-                    <input 
-                      required
-                      type="text" 
-                      maxLength={10}
-                      placeholder="0000-000"
-                      className="w-full bg-brand-white/5 border border-brand-white/10 px-6 py-4 focus:outline-none focus:border-brand-gold transition-colors text-sm"
-                      value={shippingData.zip}
-                      onChange={(e) => setShippingData({...shippingData, zip: e.target.value.slice(0, 10)})}
-                    />
-                  </div>
-                </div>
-
-                <button 
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full bg-brand-gold text-brand-black px-8 py-5 font-bold uppercase tracking-[0.2em] text-xs hover:bg-brand-white transition-all shadow-[0_0_20px_rgba(231,186,76,0.3)] hover:shadow-[0_0_30px_rgba(231,186,76,0.5)] flex items-center justify-center gap-4"
-                >
-                  {isSubmitting ? 'A Finalizar...' : 'Finalizar Pedido'} <Package size={18} />
-                </button>
-              </form>
-            </div>
-
-            <div className="bg-brand-white/5 border border-brand-white/10 p-12 h-fit space-y-8 sticky top-32">
-              <h3 className="text-xl font-bold uppercase tracking-[0.2em] italic">Resumo Final</h3>
-              <div className="space-y-4">
-                {cart.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-center text-xs opacity-60">
-                    <span>{item.product_name} x {item.quantity}</span>
-                    <span>€{(item.price_at_addition * item.quantity).toFixed(2)}</span>
-                  </div>
-                ))}
-                {discountInfo && discountInfo.discount > 0 && (
-                  <div className="flex justify-between items-center text-xs text-brand-gold">
-                    <span>Desconto ({discountInfo.code})</span>
-                    <span>- €{discountInfo.discount.toFixed(2)}</span>
-                  </div>
-                )}
-              </div>
-              <div className="pt-8 border-t border-brand-white/10 flex justify-between items-end">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-brand-white/40">Valor Total</span>
-                <span className="font-display text-4xl font-bold text-brand-gold">€{(discountInfo ? discountInfo.finalTotal : cartTotal).toFixed(2)}</span>
-              </div>
-            </div>
-          </div>
+          </motion.div>
         </div>
-      </div>
-    ) : checkoutStep === 'error' ? (
-      <div className="min-h-screen flex items-center justify-center text-center p-6">
-        <motion.div 
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="max-w-xl space-y-12"
-        >
-          <div className="w-24 h-24 bg-red-500 rounded-full flex items-center justify-center mx-auto text-brand-white shadow-[0_0_50px_rgba(239,68,68,0.5)]">
-            <AlertTriangle size={48} />
-          </div>
-          <div className="space-y-4">
-            <h1 className="font-display text-6xl font-bold tracking-tighter uppercase italic line-height-none">Erro no <span className="text-red-500 underline">Pagamento</span></h1>
-            <p className="text-brand-white/50 uppercase tracking-[0.2em] text-sm">Ocorreu um problema ao processar o seu pedido. Por favor, tente novamente.</p>
-          </div>
-          <button 
-            onClick={() => setCheckoutStep('shipping')}
-            className="px-12 py-5 border border-brand-white text-brand-white hover:bg-brand-white hover:text-brand-black transition-all font-bold uppercase tracking-[0.2em] text-xs"
+      ) : (
+        <div className="min-h-screen flex items-center justify-center text-center p-6">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="max-w-xl space-y-12"
           >
-            Tentar Novamente
-          </button>
-        </motion.div>
-      </div>
-    ) : (
-      <div className="min-h-screen flex items-center justify-center text-center p-6">
-        <motion.div 
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="max-w-xl space-y-12"
-        >
-          <div className="w-24 h-24 bg-brand-gold rounded-full flex items-center justify-center mx-auto text-brand-black shadow-[0_0_50px_rgba(231,186,76,0.5)]">
-            <CheckCircle2 size={48} />
-          </div>
-          <div className="space-y-4">
-            <h1 className="font-display text-6xl font-bold tracking-tighter uppercase italic line-height-none">Pedido <span className="text-brand-gold underline">Confirmado</span></h1>
-            <p className="text-brand-white/50 uppercase tracking-[0.2em] text-sm">O teu equipamento lendário está a caminho do balneário.</p>
-          </div>
-          <div className="bg-brand-white/5 border border-brand-white/10 p-8 rounded-sm">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-brand-white/40 mb-2">ID do Pedido</p>
-            <p className="font-display text-3xl font-bold text-brand-gold">{orderId}</p>
-          </div>
-          <button 
-            onClick={() => setCheckoutStep('home')}
-            className="px-12 py-5 border border-brand-gold text-brand-gold hover:bg-brand-gold hover:text-brand-black transition-all font-bold uppercase tracking-[0.2em] text-xs"
-          >
-            Voltar à Loja
-          </button>
-        </motion.div>
-      </div>
-    )}
+            <div className="w-24 h-24 bg-brand-gold rounded-full flex items-center justify-center mx-auto text-brand-black shadow-[0_0_50px_rgba(231,186,76,0.5)]">
+              <CheckCircle2 size={48} />
+            </div>
+            <div className="space-y-4">
+              <h1 className="font-display text-6xl font-bold tracking-tighter uppercase italic line-height-none">Pedido <span className="text-brand-gold underline">Confirmado</span></h1>
+              <p className="text-brand-white/50 uppercase tracking-[0.2em] text-sm">O teu equipamento lendário está a caminho do balneário.</p>
+            </div>
+            <div className="bg-brand-white/5 border border-brand-white/10 p-8 rounded-sm">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-brand-white/40 mb-2">ID do Pedido</p>
+              <p className="font-display text-3xl font-bold text-brand-gold">{orderId}</p>
+            </div>
+            <button
+              onClick={() => setCheckoutStep('home')}
+              className="px-12 py-5 border border-brand-gold text-brand-gold hover:bg-brand-gold hover:text-brand-black transition-all font-bold uppercase tracking-[0.2em] text-xs"
+            >
+              Voltar à Loja
+            </button>
+          </motion.div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="bg-[#050505] border-t border-brand-white/5">
         <div className="max-w-7xl mx-auto px-6 py-20">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-20">
             <div className="col-span-1 md:col-span-2">
-            <div className="flex flex-col mb-6">
-              <span className="font-display text-4xl font-bold tracking-tighter flex items-center gap-3 leading-none text-brand-white">
-                <div className="w-12 h-12 bg-brand-gold rounded-sm flex items-center justify-center text-brand-black text-xl font-black italic">10</div>
-                CAMISA 10
-              </span>
-              <span className="text-[10px] uppercase tracking-[0.4em] text-brand-gold font-bold ml-15 mt-1">Vista a Lenda.</span>
-            </div>
+              <div className="flex flex-col mb-6">
+                <span className="font-display text-4xl font-bold tracking-tighter flex items-center gap-3 leading-none text-brand-white">
+                  <div className="w-12 h-12 bg-brand-gold rounded-sm flex items-center justify-center text-brand-black text-xl font-black italic">10</div>
+                  CAMISA 10
+                </span>
+                <span className="text-[10px] uppercase tracking-[0.4em] text-brand-gold font-bold ml-15 mt-1">Vista a Lenda.</span>
+              </div>
               <p className="text-brand-white/40 max-w-sm mb-8 text-sm uppercase tracking-wider leading-relaxed">
                 A marca dos verdadeiros craques. Equipamento profissional e clássicos retro para quem vive o futebol 24/7.
               </p>
@@ -1108,14 +1125,14 @@ export default function App() {
       <AnimatePresence>
         {isCartOpen && (
           <>
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsCartOpen(false)}
               className="fixed inset-0 bg-brand-black/90 backdrop-blur-sm z-[60]"
             />
-            <motion.div 
+            <motion.div
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
@@ -1148,7 +1165,7 @@ export default function App() {
                         <div className="flex-1">
                           <div className="flex justify-between">
                             <h3 className="text-[10px] font-bold uppercase tracking-wider">{item.product_name}</h3>
-                            <button 
+                            <button
                               onClick={() => removeFromCart(item.product_id)}
                               className="text-brand-white/30 hover:text-brand-gold transition-colors"
                             >
@@ -1184,7 +1201,7 @@ export default function App() {
                     <span className="text-[10px] font-bold uppercase tracking-widest text-brand-white/40">Subtotal</span>
                     <span className="font-display text-3xl font-bold text-brand-gold">€{cartTotal.toFixed(2)}</span>
                   </div>
-                  <button 
+                  <button
                     onClick={() => {
                       setIsCartOpen(false);
                       setCheckoutStep('checkout');
@@ -1203,7 +1220,7 @@ export default function App() {
       {/* Mobile Menu Overlay */}
       <AnimatePresence>
         {isMenuOpen && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: -100 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -100 }}
@@ -1222,38 +1239,38 @@ export default function App() {
               </button>
             </div>
             <div className="flex flex-col gap-8 text-5xl font-display font-bold tracking-tighter">
-              <button 
+              <button
                 onClick={() => {
                   setIsMenuOpen(false);
                   setIsEquipamentosOpen(true);
-                }} 
+                }}
                 className="text-left hover:text-brand-gold transition-colors"
               >
                 Equipamentos
               </button>
-              <button 
+              <button
                 onClick={() => {
                   setIsMenuOpen(false);
                   setIsRetroOpen(true);
-                }} 
+                }}
                 className="text-left hover:text-brand-gold transition-colors"
               >
                 Retro
               </button>
-              <button 
+              <button
                 onClick={() => {
                   setIsMenuOpen(false);
                   setIsSelecaoOpen(true);
-                }} 
+                }}
                 className="text-left hover:text-brand-gold transition-colors"
               >
                 Seleção
               </button>
-              <button 
+              <button
                 onClick={() => {
                   setIsMenuOpen(false);
                   setIsPrimeOpen(true);
-                }} 
+                }}
                 className="text-left hover:text-brand-gold transition-colors"
               >
                 Novidades
@@ -1274,20 +1291,20 @@ export default function App() {
       <AnimatePresence>
         {selectedProduct && (
           <>
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSelectedProduct(null)}
               className="fixed inset-0 bg-brand-black/95 backdrop-blur-md z-[500]"
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="fixed inset-0 m-auto w-[90%] max-w-4xl h-fit max-h-[90vh] bg-brand-black border border-brand-white/10 z-[510] overflow-y-auto md:overflow-hidden flex flex-col md:flex-row shadow-2xl"
             >
-              <button 
+              <button
                 onClick={() => setSelectedProduct(null)}
                 className="absolute top-6 right-6 z-20 p-2 bg-brand-black/50 hover:bg-brand-gold hover:text-brand-black transition-all rounded-full"
               >
@@ -1295,9 +1312,9 @@ export default function App() {
               </button>
 
               <div className="w-full md:w-1/2 h-[400px] md:h-auto bg-[#0f0f0f] relative group/modal">
-                <img 
-                  src={activeImage || selectedProduct.image} 
-                  alt={selectedProduct.name} 
+                <img
+                  src={activeImage || selectedProduct.image}
+                  alt={selectedProduct.name}
                   className="w-full h-full object-cover transition-all duration-500"
                   referrerPolicy="no-referrer"
                   onError={(e) => {
@@ -1307,16 +1324,15 @@ export default function App() {
                     }
                   }}
                 />
-                
+
                 {/* Thumbnails */}
                 <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-3 z-20">
                   {[selectedProduct.image, selectedProduct.hoverImage, selectedProduct.thirdImage].filter(Boolean).map((img, i) => (
                     <button
                       key={i}
                       onClick={() => setActiveImage(img!)}
-                      className={`w-12 h-12 border-2 transition-all duration-300 overflow-hidden ${
-                        activeImage === img ? 'border-brand-gold scale-110 shadow-lg' : 'border-brand-white/20 opacity-50 hover:opacity-100'
-                      }`}
+                      className={`w-12 h-12 border-2 transition-all duration-300 overflow-hidden ${activeImage === img ? 'border-brand-gold scale-110 shadow-lg' : 'border-brand-white/20 opacity-50 hover:opacity-100'
+                        }`}
                     >
                       <img src={img!} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     </button>
@@ -1329,11 +1345,11 @@ export default function App() {
                   <Activity size={14} />
                   <span className="text-[10px] font-bold uppercase tracking-[0.2em]">{selectedProduct.category}</span>
                 </div>
-                
+
                 <h2 className="font-display text-2xl md:text-5xl font-bold tracking-tighter mb-4 leading-none">
                   {selectedProduct.name}
                 </h2>
-                
+
                 <p className="text-brand-white/60 text-xs md:text-sm uppercase tracking-wider leading-relaxed mb-6 md:mb-8 font-medium">
                   {selectedProduct.description}
                 </p>
@@ -1342,14 +1358,13 @@ export default function App() {
                   <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-brand-white/30 block mb-4">Tamanhos Disponíveis</span>
                   <div className="flex flex-wrap gap-2 md:gap-3">
                     {selectedProduct.sizes.map(size => (
-                      <button 
-                        key={size} 
+                      <button
+                        key={size}
                         onClick={() => setSelectedSize(size)}
-                        className={`px-3 py-2 md:px-4 md:py-2 border text-[10px] font-bold transition-all duration-300 ${
-                          selectedSize === size 
-                            ? 'border-brand-gold bg-brand-gold text-brand-black scale-110 shadow-[0_0_15px_rgba(212,175,55,0.3)]' 
-                            : 'border-brand-white/10 text-brand-white hover:border-brand-gold/50 hover:text-brand-gold'
-                        }`}
+                        className={`px-3 py-2 md:px-4 md:py-2 border text-[10px] font-bold transition-all duration-300 ${selectedSize === size
+                          ? 'border-brand-gold bg-brand-gold text-brand-black scale-110 shadow-[0_0_15px_rgba(212,175,55,0.3)]'
+                          : 'border-brand-white/10 text-brand-white hover:border-brand-gold/50 hover:text-brand-gold'
+                          }`}
                       >
                         {size}
                       </button>
@@ -1378,7 +1393,7 @@ export default function App() {
                       )}
                     </div>
                   </div>
-                  <button 
+                  <button
                     disabled={!selectedSize}
                     onClick={() => {
                       if (selectedSize) {
@@ -1386,11 +1401,10 @@ export default function App() {
                         setSelectedProduct(null);
                       }
                     }}
-                    className={`w-full sm:w-auto px-8 py-4 font-bold uppercase tracking-widest text-[10px] md:text-xs transition-all duration-300 ${
-                      selectedSize 
-                        ? 'bg-brand-gold text-brand-black hover:bg-brand-white cursor-pointer' 
-                        : 'bg-brand-white/10 text-brand-white/30 cursor-not-allowed'
-                    }`}
+                    className={`w-full sm:w-auto px-8 py-4 font-bold uppercase tracking-widest text-[10px] md:text-xs transition-all duration-300 ${selectedSize
+                      ? 'bg-brand-gold text-brand-black hover:bg-brand-white cursor-pointer'
+                      : 'bg-brand-white/10 text-brand-white/30 cursor-not-allowed'
+                      }`}
                   >
                     {selectedSize ? 'Adicionar ao Carrinho' : 'Selecione um Tamanho'}
                   </button>
@@ -1404,7 +1418,7 @@ export default function App() {
       {/* PRIME Products Overlay */}
       <AnimatePresence>
         {isPrimeOpen && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: '100%' }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: '100%' }}
@@ -1420,11 +1434,11 @@ export default function App() {
                   </div>
                   <h2 className="font-display text-5xl md:text-7xl font-bold tracking-tighter">PRODUTOS <span className="text-brand-gold">PRIME</span></h2>
                 </div>
-                <button 
+                <button
                   onClick={() => {
                     setIsPrimeOpen(false);
                     setShowAllPrime(false);
-                  }} 
+                  }}
                   className="p-4 bg-brand-white/5 hover:bg-brand-gold hover:text-brand-black transition-all rounded-full"
                 >
                   <X size={32} />
@@ -1436,63 +1450,63 @@ export default function App() {
                   .filter(p => p.category.toLowerCase() === 'prime')
                   .slice(0, showAllPrime ? 8 : 4)
                   .map((product, idx) => (
-                  <motion.div
-                    key={product.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.1 }}
-                    className="group cursor-pointer"
-                    onClick={() => setSelectedProduct(product)}
-                  >
-                    <div className="relative aspect-[4/5] overflow-hidden bg-[#0f0f0f] mb-4 border border-brand-gold/20">
-                      <img 
-                        src={product.image} 
-                        alt={product.name}
-                        className={`w-full h-full object-cover transition-all duration-700 group-hover:scale-105 opacity-80 ${product.hoverImage ? 'group-hover:opacity-0' : ''}`}
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          if (product.hoverImage && target.src !== product.hoverImage) {
-                            target.src = product.hoverImage;
-                          }
-                        }}
-                      />
-                      {product.hoverImage && (
-                        <img 
-                          src={product.hoverImage} 
-                          alt={`${product.name} hover`}
-                          className="absolute inset-0 w-full h-full object-cover transition-all duration-700 scale-110 group-hover:scale-105 opacity-0 group-hover:opacity-100"
+                    <motion.div
+                      key={product.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.1 }}
+                      className="group cursor-pointer"
+                      onClick={() => setSelectedProduct(product)}
+                    >
+                      <div className="relative aspect-[4/5] overflow-hidden bg-[#0f0f0f] mb-4 border border-brand-gold/20">
+                        <img
+                          src={product.image}
+                          alt={product.name}
+                          className={`w-full h-full object-cover transition-all duration-700 group-hover:scale-105 opacity-80 ${product.hoverImage ? 'group-hover:opacity-0' : ''}`}
                           referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            if (product.hoverImage && target.src !== product.hoverImage) {
+                              target.src = product.hoverImage;
+                            }
+                          }}
                         />
-                      )}
-                      <div className="absolute inset-0 bg-brand-gold/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      <div className="absolute top-4 left-4 flex flex-col gap-2">
-                        <span className="text-[8px] font-black uppercase tracking-[0.3em] bg-brand-gold text-brand-black px-2 py-1">PRIME</span>
-                        {product.status === 'promotion' && (
-                          <span className="text-[8px] font-black uppercase tracking-[0.3em] bg-red-600 text-white px-2 py-1 animate-pulse">PROMO</span>
+                        {product.hoverImage && (
+                          <img
+                            src={product.hoverImage}
+                            alt={`${product.name} hover`}
+                            className="absolute inset-0 w-full h-full object-cover transition-all duration-700 scale-110 group-hover:scale-105 opacity-0 group-hover:opacity-100"
+                            referrerPolicy="no-referrer"
+                          />
                         )}
+                        <div className="absolute inset-0 bg-brand-gold/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="absolute top-4 left-4 flex flex-col gap-2">
+                          <span className="text-[8px] font-black uppercase tracking-[0.3em] bg-brand-gold text-brand-black px-2 py-1">PRIME</span>
+                          {product.status === 'promotion' && (
+                            <span className="text-[8px] font-black uppercase tracking-[0.3em] bg-red-600 text-white px-2 py-1 animate-pulse">PROMO</span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex justify-between items-start px-1">
-                      <h3 className="font-bold text-xs uppercase tracking-wider group-hover:text-brand-gold transition-colors">{product.name}</h3>
-                      <div className="flex flex-col items-end">
-                        {product.status === 'promotion' && product.promotionalPrice ? (
-                          <>
-                            <span className="text-brand-white/40 text-[9px] line-through">€{product.price.toFixed(2)}</span>
-                            <span className="font-display font-bold text-brand-gold">€{product.promotionalPrice.toFixed(2)}</span>
-                          </>
-                        ) : (
-                          <span className="font-display font-bold text-brand-gold">€{product.price.toFixed(2)}</span>
-                        )}
+                      <div className="flex justify-between items-start px-1">
+                        <h3 className="font-bold text-xs uppercase tracking-wider group-hover:text-brand-gold transition-colors">{product.name}</h3>
+                        <div className="flex flex-col items-end">
+                          {product.status === 'promotion' && product.promotionalPrice ? (
+                            <>
+                              <span className="text-brand-white/40 text-[9px] line-through">€{product.price.toFixed(2)}</span>
+                              <span className="font-display font-bold text-brand-gold">€{product.promotionalPrice.toFixed(2)}</span>
+                            </>
+                          ) : (
+                            <span className="font-display font-bold text-brand-gold">€{product.price.toFixed(2)}</span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  ))}
               </div>
 
               {!showAllPrime && (
                 <div className="mt-20 text-center">
-                  <button 
+                  <button
                     onClick={() => setShowAllPrime(true)}
                     className="group flex items-center gap-4 mx-auto text-[10px] font-bold uppercase tracking-[0.4em] hover:text-brand-gold transition-colors"
                   >
@@ -1508,7 +1522,7 @@ export default function App() {
       {/* EQUIPAMENTOS Products Overlay */}
       <AnimatePresence>
         {isEquipamentosOpen && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: '100%' }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: '100%' }}
@@ -1524,8 +1538,8 @@ export default function App() {
                   </div>
                   <h2 className="font-display text-5xl md:text-7xl font-bold tracking-tighter">EQUIPAMENTOS</h2>
                 </div>
-                <button 
-                  onClick={() => setIsEquipamentosOpen(false)} 
+                <button
+                  onClick={() => setIsEquipamentosOpen(false)}
                   className="p-4 bg-brand-white/5 hover:bg-brand-gold hover:text-brand-black transition-all rounded-full"
                 >
                   <X size={32} />
@@ -1543,15 +1557,15 @@ export default function App() {
                     onClick={() => setSelectedProduct(product)}
                   >
                     <div className="relative aspect-[4/5] overflow-hidden bg-[#0f0f0f] mb-4 border border-brand-white/5">
-                      <img 
-                        src={product.image} 
+                      <img
+                        src={product.image}
                         alt={product.name}
                         className={`w-full h-full object-cover transition-all duration-700 group-hover:scale-105 opacity-80 ${product.hoverImage ? 'group-hover:opacity-0' : ''}`}
                         referrerPolicy="no-referrer"
                       />
                       {product.hoverImage && (
-                        <img 
-                          src={product.hoverImage} 
+                        <img
+                          src={product.hoverImage}
                           alt={`${product.name} hover`}
                           className="absolute inset-0 w-full h-full object-cover transition-all duration-700 scale-110 group-hover:scale-105 opacity-0 group-hover:opacity-100"
                           referrerPolicy="no-referrer"
@@ -1591,7 +1605,7 @@ export default function App() {
       {/* RETRO Products Overlay */}
       <AnimatePresence>
         {isRetroOpen && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: '100%' }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: '100%' }}
@@ -1607,8 +1621,8 @@ export default function App() {
                   </div>
                   <h2 className="font-display text-5xl md:text-7xl font-bold tracking-tighter">COLECÇÃO <span className="text-brand-gold">RETRO</span></h2>
                 </div>
-                <button 
-                  onClick={() => setIsRetroOpen(false)} 
+                <button
+                  onClick={() => setIsRetroOpen(false)}
                   className="p-4 bg-brand-white/5 hover:bg-brand-gold hover:text-brand-black transition-all rounded-full"
                 >
                   <X size={32} />
@@ -1626,15 +1640,15 @@ export default function App() {
                     onClick={() => setSelectedProduct(product)}
                   >
                     <div className="relative aspect-[4/5] overflow-hidden bg-[#0f0f0f] mb-4 border border-brand-white/5">
-                      <img 
-                        src={product.image} 
+                      <img
+                        src={product.image}
                         alt={product.name}
                         className={`w-full h-full object-cover transition-all duration-700 group-hover:scale-105 opacity-80 ${product.hoverImage ? 'group-hover:opacity-0' : ''}`}
                         referrerPolicy="no-referrer"
                       />
                       {product.hoverImage && (
-                        <img 
-                          src={product.hoverImage} 
+                        <img
+                          src={product.hoverImage}
                           alt={`${product.name} hover`}
                           className="absolute inset-0 w-full h-full object-cover transition-all duration-700 scale-110 group-hover:scale-105 opacity-0 group-hover:opacity-100"
                           referrerPolicy="no-referrer"
@@ -1674,7 +1688,7 @@ export default function App() {
       {/* SELEÇÃO Products Overlay */}
       <AnimatePresence>
         {isSelecaoOpen && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: '100%' }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: '100%' }}
@@ -1690,8 +1704,8 @@ export default function App() {
                   </div>
                   <h2 className="font-display text-5xl md:text-7xl font-bold tracking-tighter">EQUIPAMENTO <span className="text-brand-gold">SELEÇÃO</span></h2>
                 </div>
-                <button 
-                  onClick={() => setIsSelecaoOpen(false)} 
+                <button
+                  onClick={() => setIsSelecaoOpen(false)}
                   className="p-4 bg-brand-white/5 hover:bg-brand-gold hover:text-brand-black transition-all rounded-full"
                 >
                   <X size={32} />
@@ -1712,17 +1726,17 @@ export default function App() {
                       {/* Flag Background */}
                       {product.flag && (
                         <div className="absolute inset-0 z-0 opacity-20 group-hover:opacity-40 transition-opacity duration-500">
-                          <img 
-                            src={product.flag} 
-                            alt="Flag Background" 
+                          <img
+                            src={product.flag}
+                            alt="Flag Background"
                             className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700"
                             referrerPolicy="no-referrer"
                           />
                         </div>
                       )}
-                      
-                      <img 
-                        src={product.image} 
+
+                      <img
+                        src={product.image}
                         alt={product.name}
                         className={`relative z-10 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80 ${product.hoverImage ? 'group-hover:opacity-0' : 'group-hover:opacity-100'}`}
                         referrerPolicy="no-referrer"
@@ -1733,23 +1747,23 @@ export default function App() {
                           }
                         }}
                       />
-                      
+
                       {product.hoverImage && (
-                        <img 
-                          src={product.hoverImage} 
+                        <img
+                          src={product.hoverImage}
                           alt={`${product.name} hover`}
                           className="absolute inset-0 z-20 w-full h-full object-cover transition-all duration-700 scale-110 group-hover:scale-105 opacity-0 group-hover:opacity-100"
                           referrerPolicy="no-referrer"
                         />
                       )}
-                      
+
                       {/* Native Name Overlay on Hover */}
                       <div className="absolute inset-0 bg-brand-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-30">
                         <span className="font-display text-3xl font-bold tracking-tighter text-brand-gold uppercase">
                           {product.nativeName}
                         </span>
                       </div>
-                      
+
                       <div className="absolute inset-0 bg-brand-navy/20 opacity-0 group-hover:opacity-100 transition-opacity z-25" />
                       {product.status === 'promotion' && (
                         <div className="absolute top-4 left-4 z-40">
@@ -1784,20 +1798,20 @@ export default function App() {
       <AnimatePresence>
         {isFAQOpen && (
           <>
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsFAQOpen(false)}
               className="fixed inset-0 bg-brand-black/95 backdrop-blur-md z-[600]"
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="fixed inset-0 m-auto w-[90%] max-w-2xl h-fit max-h-[80vh] bg-brand-black border border-brand-white/10 z-[610] p-8 md:p-12 shadow-2xl overflow-y-auto"
             >
-              <button 
+              <button
                 onClick={() => setIsFAQOpen(false)}
                 className="absolute top-6 right-6 z-20 p-2 bg-brand-black/50 hover:bg-brand-gold hover:text-brand-black transition-all rounded-full"
               >
@@ -1825,7 +1839,7 @@ export default function App() {
                             <p className="font-bold text-brand-white text-[10px] tracking-widest uppercase mb-2">Processamento da Encomenda</p>
                             <p className="text-brand-white/60">Todas as encomendas são processadas e produzidas em 48 a 72 horas antes do envio.</p>
                           </div>
-                          
+
                           <div className="border-l-2 border-brand-gold pl-4 py-1">
                             <p className="font-bold text-brand-white text-[10px] tracking-widest uppercase mb-2">Prazos de Entrega (após envio):</p>
                             <ul className="space-y-2 text-brand-white/60">
@@ -1837,14 +1851,14 @@ export default function App() {
 
                           <div className="bg-brand-white/5 p-4 rounded-sm border border-brand-white/10">
                             <p className="text-brand-gold flex items-start gap-2 mb-3">
-                              <span className="shrink-0">⚠️</span> 
+                              <span className="shrink-0">⚠️</span>
                               <span>Atenção: Os prazos acima referem-se apenas ao tempo de envio. Não incluem o tempo de processamento e produção da encomenda.</span>
                             </p>
                             <p className="text-brand-white/80 flex items-center gap-2">
                               <span className="shrink-0">👉</span>
                               <span>
                                 Para mais informações,{' '}
-                                <button 
+                                <button
                                   onClick={() => setIsShippingPolicyOpen(true)}
                                   className="underline hover:text-brand-gold transition-colors cursor-pointer"
                                 >
@@ -1871,14 +1885,14 @@ export default function App() {
                       <h3 className="text-brand-gold font-bold uppercase tracking-widest text-xs mt-1">
                         {item.q}
                       </h3>
-                      <button 
+                      <button
                         onClick={() => setExpandedFAQ(expandedFAQ === i ? null : i)}
                         className="text-[9px] font-black uppercase tracking-[0.2em] bg-brand-white/5 hover:bg-brand-gold hover:text-brand-black px-3 py-1.5 transition-all shrink-0"
                       >
                         {expandedFAQ === i ? 'Fechar' : 'Ver mais'}
                       </button>
                     </div>
-                    
+
                     <AnimatePresence>
                       {expandedFAQ === i && (
                         <motion.div
@@ -1900,25 +1914,25 @@ export default function App() {
           </>
         )}
       </AnimatePresence>
-      
+
       {/* Shipping Policy Overlay */}
       <AnimatePresence>
         {isShippingPolicyOpen && (
           <>
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsShippingPolicyOpen(false)}
               className="fixed inset-0 bg-brand-black/95 backdrop-blur-md z-[700]"
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="fixed inset-0 m-auto w-[95%] max-w-4xl h-fit max-h-[90vh] bg-brand-black border border-brand-white/10 z-[710] p-8 md:p-16 shadow-2xl overflow-y-auto custom-scrollbar"
             >
-              <button 
+              <button
                 onClick={() => setIsShippingPolicyOpen(false)}
                 className="absolute top-6 right-6 z-20 p-2 bg-brand-black/50 hover:bg-brand-gold hover:text-brand-black transition-all rounded-full"
               >
@@ -1938,8 +1952,8 @@ export default function App() {
               <div className="space-y-10 text-brand-white/70 text-sm md:text-base leading-relaxed">
                 <section>
                   <p className="text-brand-white font-medium mb-4">
-                    Obrigado por escolher a <span className="text-brand-gold">Camisa10</span>! 
-                    Estamos encantados por lhe proporcionar uma experiência de compras excepcional. 
+                    Obrigado por escolher a <span className="text-brand-gold">Camisa10</span>!
+                    Estamos encantados por lhe proporcionar uma experiência de compras excepcional.
                     Por favor, reserve um momento para rever a nossa política de envio antes de efetuar a sua encomenda.
                   </p>
                 </section>
@@ -1948,8 +1962,8 @@ export default function App() {
                   <section className="space-y-4">
                     <h3 className="text-brand-gold font-bold uppercase tracking-widest text-xs">Tempo de Processamento</h3>
                     <p>
-                      Por serem artigos de caráter personalizado, as encomendas são normalmente processadas dentro de 
-                      <span className="text-brand-white font-bold"> 3 a 5 dias úteis</span> após a confirmação do pagamento. 
+                      Por serem artigos de caráter personalizado, as encomendas são normalmente processadas dentro de
+                      <span className="text-brand-white font-bold"> 3 a 5 dias úteis</span> após a confirmação do pagamento.
                       Este prazo corresponde ao tempo entre o pagamento e a preparação da encomenda para envio.
                     </p>
                     <p className="text-xs italic opacity-60">
@@ -1981,7 +1995,7 @@ export default function App() {
                   <section className="space-y-4">
                     <h3 className="text-brand-gold font-bold uppercase tracking-widest text-xs">Acompanhamento</h3>
                     <p>
-                      Assim que a sua encomenda for enviada, iremos fornecer-lhe um número de rastreamento por e-mail ou SMS. 
+                      Assim que a sua encomenda for enviada, iremos fornecer-lhe um número de rastreamento por e-mail ou SMS.
                       Pode utilizar este número para monitorizar o estado de entrega em tempo real.
                     </p>
                   </section>
@@ -1999,7 +2013,7 @@ export default function App() {
                 <section className="space-y-4 border-t border-brand-white/10 pt-10">
                   <h3 className="text-brand-gold font-bold uppercase tracking-widest text-xs">Envio Internacional e Alfândega</h3>
                   <p>
-                    As encomendas internacionais podem estar sujeitas a direitos aduaneiros, impostos ou outras taxas impostas pelas regulamentações do seu país. 
+                    As encomendas internacionais podem estar sujeitas a direitos aduaneiros, impostos ou outras taxas impostas pelas regulamentações do seu país.
                     Estas taxas são da <span className="text-brand-white font-bold underline">responsabilidade do destinatário</span> e não estão incluídas no preço do produto.
                   </p>
                 </section>
@@ -2007,7 +2021,7 @@ export default function App() {
                 <section className="space-y-4">
                   <h3 className="text-brand-gold font-bold uppercase tracking-widest text-xs">Precisão do Endereço</h3>
                   <p>
-                    Forneça informações de envio precisas e completas durante o checkout. 
+                    Forneça informações de envio precisas e completas durante o checkout.
                     Não somos responsáveis por atrasos ou problemas de entrega causados por detalhes de endereço incorretos ou incompletos.
                   </p>
                 </section>
@@ -2016,7 +2030,7 @@ export default function App() {
                   <section className="space-y-4">
                     <h3 className="text-brand-gold font-bold uppercase tracking-widest text-xs">Atrasos na Entrega</h3>
                     <p>
-                      Embora façamos todos os esforços para cumprir os prazos, fatores como condições climáticas ou inspeções alfandegárias 
+                      Embora façamos todos os esforços para cumprir os prazos, fatores como condições climáticas ou inspeções alfandegárias
                       podem causar atrasos além do nosso controlo. Agradecemos a sua compreensão.
                     </p>
                   </section>
@@ -2024,7 +2038,7 @@ export default function App() {
                   <section className="space-y-4">
                     <h3 className="text-brand-gold font-bold uppercase tracking-widest text-xs">Perdas ou Danos</h3>
                     <p>
-                      No raro caso de a sua encomenda se perder ou danificar, entre imediatamente em contacto connosco. 
+                      No raro caso de a sua encomenda se perder ou danificar, entre imediatamente em contacto connosco.
                       Trabalharemos diligentemente para oferecer soluções adequadas.
                     </p>
                   </section>
@@ -2045,7 +2059,7 @@ export default function App() {
 
                 <section className="text-[10px] uppercase tracking-[0.2em] opacity-40 text-center pt-10">
                   <p>
-                    Esta política de envio está sujeita a alterações sem aviso prévio. 
+                    Esta política de envio está sujeita a alterações sem aviso prévio.
                     Ao efetuar uma encomenda, reconhece e concorda com os termos aqui descritos.
                   </p>
                   <p className="mt-4 font-bold text-brand-gold">
@@ -2061,7 +2075,7 @@ export default function App() {
       {/* Country Sub-Options Overlay */}
       <AnimatePresence>
         {selectedCountry && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
@@ -2075,8 +2089,8 @@ export default function App() {
                     {selectedCountry.nativeName} <span className="text-brand-gold">OPTIONS</span>
                   </h2>
                 </div>
-                <button 
-                  onClick={() => setSelectedCountry(null)} 
+                <button
+                  onClick={() => setSelectedCountry(null)}
                   className="p-4 bg-brand-white/5 hover:bg-brand-gold hover:text-brand-black transition-all rounded-full"
                 >
                   <X size={24} />
@@ -2108,8 +2122,8 @@ export default function App() {
                     }}
                   >
                     <div className="relative aspect-square overflow-hidden bg-brand-white/5 border border-brand-white/10 mb-4">
-                      <img 
-                        src={opt.img} 
+                      <img
+                        src={opt.img}
                         alt={opt.type}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 opacity-60 group-hover:opacity-100"
                         referrerPolicy="no-referrer"
