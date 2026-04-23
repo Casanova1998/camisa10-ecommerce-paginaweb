@@ -13,6 +13,7 @@ interface Product {
   image: string | null;
   hoverImage?: string | null;
   thirdImage?: string | null;
+  fourthImage?: string | null;
   category: string;
   description: string;
   sizes: string[];
@@ -31,6 +32,7 @@ const mapBackendProduct = (p: any): Product => ({
   image: p.image_url || DEFAULT_IMAGE,
   hoverImage: p.hover_image_url || null,
   thirdImage: p.third_image_url || null,
+  fourthImage: p.fourth_image_url || null,
   category: p.category || p.tags?.[0] || 'Equipamento',
   description: p.attributes?.description || p.name,
   sizes: p.attributes?.sizes || ["S", "M", "L", "XL"],
@@ -262,17 +264,19 @@ export default function App() {
     });
 
     try {
-      await cartApi.removeItem(productId);
+      const updatedCart = await cartApi.removeItem(productId);
+      if (updatedCart?.items) {
+        setCart(updatedCart.items.map(mapBackendCartItem));
+      }
     } catch (err: any) {
       console.error("Failed to remove item from server cart", err);
-      // If it's a 404, it means it's already gone from server, so we're good.
-      // Only refresh if it's NOT a 404 (e.g. session error)
+      // Fallback: if server fails but not a 404, we might want to refresh truth
       if (!err.message?.includes("404") && !err.message?.includes("not found")) {
         try {
           const cartData = await cartApi.getCart();
           setCart((cartData.items || []).map(mapBackendCartItem));
         } catch {
-          // If even refresh fails, revert to previous state to avoid empty cart
+          // Final fallback: revert to previous local state
           setCart(previousCart);
         }
       }
@@ -299,7 +303,10 @@ export default function App() {
     });
 
     try {
-      await cartApi.updateItem(productId, quantity);
+      const updatedCart = await cartApi.updateItem(productId, quantity);
+      if (updatedCart?.items) {
+        setCart(updatedCart.items.map(mapBackendCartItem));
+      }
     } catch (err: any) {
       console.error("Failed to update item quantity on server", err);
       const errorMsg = err.message || "";
@@ -307,12 +314,12 @@ export default function App() {
         alert("Desculpe, não há stock suficiente para esta quantidade.");
       }
 
-      // Revert to server state
+      // Revert to server truth
       try {
         const cartData = await cartApi.getCart();
         setCart((cartData.items || []).map(mapBackendCartItem));
       } catch {
-        // If even refresh fails, revert to previous local state
+        // Final fallback: revert to previous local state
         setCart(previousCart);
       }
     }
@@ -1327,7 +1334,7 @@ export default function App() {
 
                 {/* Thumbnails */}
                 <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-3 z-20">
-                  {[selectedProduct.image, selectedProduct.hoverImage, selectedProduct.thirdImage].filter(Boolean).map((img, i) => (
+                  {[selectedProduct.image, selectedProduct.hoverImage, selectedProduct.thirdImage, selectedProduct.fourthImage].filter(Boolean).map((img, i) => (
                     <button
                       key={i}
                       onClick={() => setActiveImage(img!)}

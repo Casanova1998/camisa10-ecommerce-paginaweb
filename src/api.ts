@@ -20,7 +20,7 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => {
-    const sessionId = response.headers["x-session-id"];
+    const sessionId = response.headers["x-session-id"] || response.headers["X-Session-ID"];
     if (sessionId) {
       localStorage.setItem("cart_session_id", sessionId);
     }
