@@ -266,19 +266,20 @@ export default function App() {
     try {
       const updatedCart = await cartApi.removeItem(productId);
       if (updatedCart?.items) {
+        // Only update if we get items back or it's a valid empty response
         setCart(updatedCart.items.map(mapBackendCartItem));
+      } else if (updatedCart && Array.isArray(updatedCart)) {
+        // Handle case where backend returns array directly
+        setCart(updatedCart.map(mapBackendCartItem));
       }
     } catch (err: any) {
       console.error("Failed to remove item from server cart", err);
-      // Fallback: if server fails but not a 404, we might want to refresh truth
-      if (!err.message?.includes("404") && !err.message?.includes("not found")) {
-        try {
-          const cartData = await cartApi.getCart();
-          setCart((cartData.items || []).map(mapBackendCartItem));
-        } catch {
-          // Final fallback: revert to previous local state
-          setCart(previousCart);
-        }
+      // Fallback: if server fails, revert to previous local state to avoid "empty cart" ghosting
+      setCart(previousCart);
+      
+      const errorMsg = err.message || "";
+      if (errorMsg.includes("401") || errorMsg.includes("403")) {
+        console.warn("Session error detected on remove. Cart might be out of sync.");
       }
     }
   };
@@ -306,6 +307,8 @@ export default function App() {
       const updatedCart = await cartApi.updateItem(productId, quantity);
       if (updatedCart?.items) {
         setCart(updatedCart.items.map(mapBackendCartItem));
+      } else if (updatedCart && Array.isArray(updatedCart)) {
+        setCart(updatedCart.map(mapBackendCartItem));
       }
     } catch (err: any) {
       console.error("Failed to update item quantity on server", err);
@@ -314,13 +317,19 @@ export default function App() {
         alert("Desculpe, não há stock suficiente para esta quantidade.");
       }
 
-      // Revert to server truth
-      try {
-        const cartData = await cartApi.getCart();
-        setCart((cartData.items || []).map(mapBackendCartItem));
-      } catch {
-        // Final fallback: revert to previous local state
-        setCart(previousCart);
+      // Revert to local truth first to keep UI stable
+      setCart(previousCart);
+
+      // Try to refresh truth from server if it wasn't a 404
+      if (!errorMsg.includes("404") && !errorMsg.includes("not found")) {
+        try {
+          const cartData = await cartApi.getCart();
+          if (cartData?.items && cartData.items.length > 0) {
+            setCart(cartData.items.map(mapBackendCartItem));
+          }
+        } catch (refreshErr) {
+          console.error("Failed to refresh cart after error", refreshErr);
+        }
       }
     }
   };
@@ -636,6 +645,7 @@ export default function App() {
                       <div className="absolute inset-0 bg-brand-navy/20 opacity-0 group-hover:opacity-100 transition-opacity" />
                       <div className="absolute bottom-0 left-0 w-full p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 z-10">
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             addToCart(product);
@@ -807,9 +817,10 @@ export default function App() {
                                 </div>
                               </div>
                             </td>
-                            <td className="px-6 py-8">
+                             <td className="px-6 py-8">
                               <div className="flex items-center justify-center gap-4">
                                 <button
+                                  type="button"
                                   onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
                                   className="w-8 h-8 rounded-full border border-brand-white/10 flex items-center justify-center hover:border-brand-gold hover:text-brand-gold transition-colors cursor-pointer"
                                 >
@@ -817,6 +828,7 @@ export default function App() {
                                 </button>
                                 <span className="font-display font-bold text-sm min-w-[20px] text-center text-brand-white">{item.quantity}</span>
                                 <button
+                                  type="button"
                                   onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
                                   className="w-8 h-8 rounded-full border border-brand-white/10 flex items-center justify-center hover:border-brand-gold hover:text-brand-gold transition-colors cursor-pointer"
                                 >
@@ -827,6 +839,7 @@ export default function App() {
                             <td className="px-6 py-8 font-display font-bold text-brand-gold">€{(item.price_at_addition * item.quantity).toFixed(2)}</td>
                             <td className="px-6 py-8">
                               <button
+                                type="button"
                                 onClick={() => removeFromCart(item.product_id)}
                                 className="p-3 text-brand-white/20 hover:text-brand-gold hover:bg-brand-gold/10 transition-all rounded-full cursor-pointer"
                               >
@@ -1173,6 +1186,7 @@ export default function App() {
                           <div className="flex justify-between">
                             <h3 className="text-[10px] font-bold uppercase tracking-wider">{item.product_name}</h3>
                             <button
+                              type="button"
                               onClick={() => removeFromCart(item.product_id)}
                               className="text-brand-white/30 hover:text-brand-gold transition-colors"
                             >
@@ -1182,12 +1196,14 @@ export default function App() {
                           <div className="flex justify-between items-center mt-2">
                             <div className="flex items-center gap-2 border border-brand-white/10 px-2 py-1">
                               <button
+                                type="button"
                                 onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
                                 className="w-6 h-6 flex items-center justify-center text-[12px] font-bold hover:text-brand-gold transition-colors cursor-pointer select-none"
                                 aria-label="Diminuir quantidade"
                               >−</button>
                               <span className="text-[10px] font-bold min-w-[20px] text-center">{item.quantity}</span>
                               <button
+                                type="button"
                                 onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
                                 className="w-6 h-6 flex items-center justify-center text-[12px] font-bold hover:text-brand-gold transition-colors cursor-pointer select-none"
                                 aria-label="Aumentar quantidade"
@@ -1401,6 +1417,7 @@ export default function App() {
                     </div>
                   </div>
                   <button
+                    type="button"
                     disabled={!selectedSize}
                     onClick={() => {
                       if (selectedSize) {

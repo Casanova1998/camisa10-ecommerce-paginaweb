@@ -11,19 +11,16 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const sessionId = localStorage.getItem("cart_session_id");
-  if (sessionId) {
-    config.headers["X-Session-ID"] = sessionId;
-  }
+  // We no longer store session ID in localStorage for security reasons.
+  // The browser will handle the HttpOnly "session" cookie automatically
+  // because withCredentials is set to true.
   return config;
 });
 
 api.interceptors.response.use(
   (response) => {
-    const sessionId = response.headers["x-session-id"] || response.headers["X-Session-ID"];
-    if (sessionId) {
-      localStorage.setItem("cart_session_id", sessionId);
-    }
+    // The session is handled via HttpOnly cookies. 
+    // We don't store the session token in localStorage anymore.
     return response;
   },
   (error) => {
