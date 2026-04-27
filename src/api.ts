@@ -11,16 +11,23 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  // We no longer store session ID in localStorage for security reasons.
-  // The browser will handle the HttpOnly "session" cookie automatically
-  // because withCredentials is set to true.
+  // Use X-Session-ID from localStorage as a fallback for mobile Safari
+  // where cross-site cookies might be blocked by tracking prevention
+  const sessionId = localStorage.getItem("sessionId");
+  if (sessionId) {
+    config.headers["X-Session-ID"] = sessionId;
+  }
   return config;
 });
 
 api.interceptors.response.use(
   (response) => {
-    // The session is handled via HttpOnly cookies. 
-    // We don't store the session token in localStorage anymore.
+    // Read X-Session-ID from headers and store as a fallback
+    // This dual-mechanism prevents cart state loss on mobile
+    const sessionId = response.headers["x-session-id"];
+    if (sessionId) {
+      localStorage.setItem("sessionId", sessionId);
+    }
     return response;
   },
   (error) => {
