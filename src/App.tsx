@@ -19,6 +19,7 @@ interface Product {
   sizes: string[];
   flag?: string;
   nativeName?: string;
+  stockQuantity: number;
 }
 
 const DEFAULT_IMAGE = "https://placehold.co/400x500/0f0f0f/c5a059?text=Sem+Imagem";
@@ -37,7 +38,8 @@ const mapBackendProduct = (p: any): Product => ({
   description: p.attributes?.description || p.name,
   sizes: p.attributes?.sizes || ["S", "M", "L", "XL"],
   flag: p.attributes?.flag,
-  nativeName: p.attributes?.nativeName
+  nativeName: p.attributes?.nativeName,
+  stockQuantity: p.stock_quantity || 0
 });
 
 const mapBackendCartItem = (item: any) => ({
@@ -392,6 +394,7 @@ export default function App() {
                 <div>
                   <h3 className="text-[10px] font-bold uppercase tracking-widest">{product.name}</h3>
                   <p className="text-[8px] text-brand-white/40 uppercase mt-1">{product.category}</p>
+                  {product.stockQuantity <= 0 && <p className="text-red-600 text-[8px] font-bold uppercase tracking-widest mt-1">Stock esgotado</p>}
                 </div>
                 <span className="font-display font-bold text-brand-gold text-lg">€{product.price}</span>
               </div>
@@ -646,13 +649,14 @@ export default function App() {
                       <div className="absolute bottom-0 left-0 w-full p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 z-10">
                         <button
                           type="button"
+                          disabled={product.stockQuantity <= 0}
                           onClick={(e) => {
                             e.stopPropagation();
                             addToCart(product);
                           }}
-                          className="w-full bg-brand-white text-brand-black py-3 font-bold uppercase text-[10px] tracking-widest hover:bg-brand-gold transition-colors"
+                          className="w-full bg-brand-white text-brand-black py-3 font-bold uppercase text-[10px] tracking-widest hover:bg-brand-gold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          Adicionar ao Carrinho
+                          {product.stockQuantity <= 0 ? 'Esgotado' : 'Adicionar ao Carrinho'}
                         </button>
                       </div>
                       <div className="absolute top-4 left-4 flex flex-col gap-2">
@@ -670,7 +674,7 @@ export default function App() {
                       <div>
                         <h3 className="font-bold text-xs uppercase tracking-wider group-hover:text-brand-gold transition-colors">{product.name}</h3>
                         <p className="text-brand-white/40 text-[9px] mt-1 uppercase tracking-widest text-red-600">
-                          {product.status === 'out_of_stock' ? 'Stock esgotado' : ''}
+                          {product.stockQuantity <= 0 ? 'Stock esgotado' : ''}
                         </p>
                       </div>
                       <div className="flex flex-col items-end">
@@ -764,6 +768,7 @@ export default function App() {
                           ) : (
                             <p className="text-brand-gold font-display font-bold text-lg">€{product.price.toFixed(2)}</p>
                           )}
+                          {product.stockQuantity <= 0 && <p className="text-red-600 text-[9px] font-bold uppercase tracking-widest mt-1">Stock esgotado</p>}
                           <button className="mt-4 text-[9px] font-black uppercase tracking-widest text-brand-white/40 group-hover:text-brand-gold transition-colors text-left">Ver Detalhes</button>
                         </div>
                       </div>
@@ -857,11 +862,9 @@ export default function App() {
                     </div>
                   )}
                 </div>
-
-                <RecommendedSection />
               </div>
 
-              <div className="space-y-6">
+              <div className="space-y-6 lg:col-span-1 lg:row-span-2">
                 <div className="bg-brand-white/5 border border-brand-white/10 p-8 space-y-8">
                   <h2 className="font-display text-2xl font-bold tracking-tighter uppercase italic">Resumo do Pedido</h2>
 
@@ -910,6 +913,10 @@ export default function App() {
                     {isSubmitting ? 'A Processar...' : 'Continuar'} <ChevronRight size={18} />
                   </button>
                 </div>
+              </div>
+
+              <div className="lg:col-span-2 space-y-8">
+                <RecommendedSection />
               </div>
             </div>
           </div>
@@ -1418,19 +1425,19 @@ export default function App() {
                   </div>
                   <button
                     type="button"
-                    disabled={!selectedSize}
+                    disabled={!selectedSize || selectedProduct.stockQuantity <= 0}
                     onClick={() => {
-                      if (selectedSize) {
+                      if (selectedSize && selectedProduct.stockQuantity > 0) {
                         addToCart(selectedProduct);
                         setSelectedProduct(null);
                       }
                     }}
-                    className={`w-full sm:w-auto px-8 py-4 font-bold uppercase tracking-widest text-[10px] md:text-xs transition-all duration-300 ${selectedSize
-                      ? 'bg-brand-gold text-brand-black hover:bg-brand-white cursor-pointer'
-                      : 'bg-brand-white/10 text-brand-white/30 cursor-not-allowed'
+                    className={`w-full sm:w-auto px-8 py-4 font-bold uppercase tracking-widest text-[10px] md:text-xs transition-all duration-300 ${!selectedSize || selectedProduct.stockQuantity <= 0
+                      ? 'bg-brand-white/10 text-brand-white/30 cursor-not-allowed'
+                      : 'bg-brand-gold text-brand-black hover:bg-brand-white cursor-pointer'
                       }`}
                   >
-                    {selectedSize ? 'Adicionar ao Carrinho' : 'Selecione um Tamanho'}
+                    {selectedProduct.stockQuantity <= 0 ? 'Esgotado' : selectedSize ? 'Adicionar ao Carrinho' : 'Selecione um Tamanho'}
                   </button>
                 </div>
               </div>
