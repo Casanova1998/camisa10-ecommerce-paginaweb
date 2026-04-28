@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import cookiePolicy from './cookiePolicy.json';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShoppingCart, X, Menu, ArrowRight, Instagram, Github, Trophy, Goal, Activity, Search, ChevronLeft, ChevronRight, Minus, Plus, Trash2, Package, CheckCircle2, AlertTriangle, Printer, Download } from 'lucide-react';
+import { ShoppingCart, X, Menu, ArrowRight, Instagram, Github, Trophy, Goal, Activity, Search, ChevronLeft, ChevronRight, Minus, Plus, Trash2, Package, CheckCircle2, AlertTriangle, Printer, Download, Mail, Loader2 } from 'lucide-react';
 import { catalogApi, cartApi, ordersApi } from './api';
 
 interface Product {
@@ -88,6 +88,9 @@ export default function App() {
   const [orderData, setOrderData] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [discountInfo, setDiscountInfo] = useState<{ discount: number, finalTotal: number, code: string, type: string, value: number } | null>(null);
+  const [invoiceEmail, setInvoiceEmail] = useState('');
+  const [invoiceSent, setInvoiceSent] = useState(false);
+  const [invoiceSending, setInvoiceSending] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -98,6 +101,7 @@ export default function App() {
           const data = await ordersApi.getOrder(id);
           setOrderData(data);
           setOrderId(id);
+          setInvoiceEmail(data.guest_email || '');
           setCheckoutStep('success');
           // Clear cart
           await cartApi.clearCart();
@@ -1170,7 +1174,16 @@ export default function App() {
                             <p className="text-[9px] text-black/40 uppercase mt-1">Ref: {item.product_id?.slice(0, 8)}</p>
                           </td>
                           <td className="py-6 text-center text-xs font-bold">{item.quantity}</td>
-                          <td className="py-6 text-right text-xs">€{(item.unit_price || 0).toFixed(2)}</td>
+                          <td className="py-6 text-right text-xs">
+                            {item.original_price ? (
+                              <div className="flex flex-col items-end">
+                                <span className="line-through text-black/40">€{item.original_price.toFixed(2)}</span>
+                                <span className="text-green-600 font-bold">€{item.unit_price.toFixed(2)}</span>
+                              </div>
+                            ) : (
+                              <span>€{(item.unit_price || 0).toFixed(2)}</span>
+                            )}
+                          </td>
                           <td className="py-6 text-right text-xs font-bold">€{((item.unit_price || 0) * item.quantity).toFixed(2)}</td>
                         </tr>
                       ))}
@@ -1183,15 +1196,27 @@ export default function App() {
                   <div className="w-full md:w-64 space-y-4">
                     <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-black/40">
                       <span>Subtotal</span>
-                      <span className="text-black">€{(orderData?.total_amount || 0).toFixed(2)}</span>
+                      <span className="text-black">€{(orderData?.subtotal || 0).toFixed(2)}</span>
                     </div>
+                    {orderData?.items?.some((item: any) => item.discount_amount > 0) && (
+                      <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-green-600">
+                        <span>Desconto Produto</span>
+                        <span>-€{orderData.items.reduce((sum: number, item: any) => sum + ((item.discount_amount || 0) * item.quantity), 0).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {orderData?.coupon_code && (
+                      <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-green-600">
+                        <span>Cupão ({orderData.coupon_code})</span>
+                        <span>-€{(orderData.coupon_discount || 0).toFixed(2)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-black/40">
                       <span>Envio</span>
                       <span className="text-green-600 italic font-bold">Grátis</span>
                     </div>
                     <div className="flex justify-between items-end pt-4 border-t border-black/10">
                       <span className="text-[10px] font-bold uppercase tracking-widest">Total Pago</span>
-                      <span className="font-display text-3xl font-bold text-brand-gold leading-none">€{(orderData?.total_amount || 0).toFixed(2)}</span>
+                      <span className="font-display text-3xl font-bold text-brand-gold leading-none">€{(orderData?.final_price || 0).toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
@@ -1217,6 +1242,58 @@ export default function App() {
               >
                 Voltar à Loja <ArrowRight size={16} />
               </button>
+            </div>
+
+            {/* Email Invoice Form */}
+            <div className="mt-12 p-6 bg-brand-white/5 border border border-brand-gold/20 rounded-lg max-w-md mx-auto no-print">
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-brand-gold mb-4">Enviar Fatura por Email</h3>
+              {invoiceSent ? (
+                <div className="text-green-600 text-sm font-bold flex items-center gap-2">
+                  <Mail size={16} /> Fatura enviada com sucesso!
+                </div>
+              ) : (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!invoiceEmail || !orderId) return;
+                    setInvoiceSending(true);
+                    try {
+                      await ordersApi.sendInvoice(orderId, invoiceEmail);
+                      setInvoiceSent(true);
+                    } catch (err: any) {
+                      console.error("Failed to send invoice", err);
+                      alert(err?.response?.data?.detail || err?.message || "Failed to send invoice");
+                    } finally {
+                      setInvoiceSending(false);
+                    }
+                  }}
+                  className="flex flex-col gap-3"
+                >
+                  <input
+                    type="email"
+                    value={invoiceEmail}
+                    onChange={(e) => setInvoiceEmail(e.target.value)}
+                    placeholder="Seu email"
+                    className="px-4 py-3 bg-brand-black/50 border border-brand-white/20 text-brand-white text-sm focus:border-brand-gold focus:outline-none"
+                    required
+                  />
+                  <button
+                    type="submit"
+                    disabled={invoiceSending || !invoiceEmail}
+                    className="flex items-center justify-center gap-2 px-6 py-3 bg-brand-gold text-brand-black font-bold uppercase tracking-widest text-[10px] hover:bg-brand-white transition-all disabled:opacity-50"
+                  >
+                    {invoiceSending ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" /> A enviar...
+                      </>
+                    ) : (
+                      <>
+                        <Mail size={16} /> Enviar Fatura
+                      </>
+                    )}
+                  </button>
+                </form>
+              )}
             </div>
           </motion.div>
         </div>

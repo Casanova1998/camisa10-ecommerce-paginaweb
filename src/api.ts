@@ -81,4 +81,9 @@ export const ordersApi = {
       data: { code },
     }),
   getOrder: (id: string) => apiRequest(`/orders/${id}`),
+  sendInvoice: (orderId: string, email: string) =>
+    apiRequest(`/orders/${orderId}/invoice`, {
+      method: "POST",
+      data: { email },
+    }),
 };
