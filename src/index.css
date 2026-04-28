@@ -61,3 +61,20 @@
   background: #c5a059;
   border-radius: 10px;
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+    background-image: none !important;
+  }
+  #invoice {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import cookiePolicy from './cookiePolicy.json';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShoppingCart, X, Menu, ArrowRight, Instagram, Github, Trophy, Goal, Activity, Search, ChevronLeft, ChevronRight, Minus, Plus, Trash2, Package, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { ShoppingCart, X, Menu, ArrowRight, Instagram, Github, Trophy, Goal, Activity, Search, ChevronLeft, ChevronRight, Minus, Plus, Trash2, Package, CheckCircle2, AlertTriangle, Printer, Download } from 'lucide-react';
 import { catalogApi, cartApi, ordersApi } from './api';
 
 interface Product {
@@ -85,8 +85,32 @@ export default function App() {
   const [couponCode, setCouponCode] = useState('');
   const [couponError, setCouponError] = useState('');
   const [orderId, setOrderId] = useState<string | null>(null);
+  const [orderData, setOrderData] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [discountInfo, setDiscountInfo] = useState<{ discount: number, finalTotal: number, code: string, type: string, value: number } | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('order_id');
+    if (id) {
+      const fetchOrder = async () => {
+        try {
+          const data = await ordersApi.getOrder(id);
+          setOrderData(data);
+          setOrderId(id);
+          setCheckoutStep('success');
+          // Clear cart
+          await cartApi.clearCart();
+          setCart([]);
+          // Clean URL
+          window.history.replaceState({}, '', window.location.pathname);
+        } catch (err) {
+          console.error("Failed to fetch order", err);
+        }
+      };
+      fetchOrder();
+    }
+  }, []);
 
   const cartTotal = useMemo(() => {
     return cart.reduce((total, item) => total + (item.price_at_addition * item.quantity), 0);
@@ -1073,29 +1097,127 @@ export default function App() {
           </motion.div>
         </div>
       ) : (
-        <div className="min-h-screen flex items-center justify-center text-center p-6">
+        <div className="min-h-screen py-32 px-6 bg-brand-black">
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="max-w-xl space-y-12"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-4xl mx-auto"
           >
-            <div className="w-24 h-24 bg-brand-gold rounded-full flex items-center justify-center mx-auto text-brand-black shadow-[0_0_50px_rgba(231,186,76,0.5)]">
-              <CheckCircle2 size={48} />
+            {/* Header Success Message */}
+            <div className="text-center mb-16 no-print">
+              <div className="w-20 h-20 bg-brand-gold rounded-full flex items-center justify-center mx-auto mb-8 text-brand-black shadow-[0_0_50px_rgba(231,186,76,0.3)]">
+                <CheckCircle2 size={40} />
+              </div>
+              <h1 className="font-display text-5xl md:text-7xl font-bold tracking-tighter uppercase italic mb-4">Pedido <span className="text-brand-gold underline">Confirmado</span></h1>
+              <p className="text-brand-white/50 uppercase tracking-[0.2em] text-sm">Obrigado pela tua compra. O teu equipamento está a ser preparado.</p>
             </div>
-            <div className="space-y-4">
-              <h1 className="font-display text-6xl font-bold tracking-tighter uppercase italic line-height-none">Pedido <span className="text-brand-gold underline">Confirmado</span></h1>
-              <p className="text-brand-white/50 uppercase tracking-[0.2em] text-sm">O teu equipamento lendário está a caminho do balneário.</p>
+
+            {/* Invoice Model */}
+            <div id="invoice" className="bg-white text-black p-8 md:p-16 rounded-sm shadow-2xl relative overflow-hidden">
+              {/* Invoice Watermark/Design */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-brand-gold/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+              
+              <div className="relative z-10">
+                {/* Invoice Header */}
+                <div className="flex flex-col md:flex-row justify-between items-start gap-8 mb-16 border-b-2 border-brand-black/5 pb-12">
+                  <div>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 bg-brand-black rounded-sm flex items-center justify-center text-brand-gold text-lg font-black italic">10</div>
+                      <span className="font-display text-2xl font-bold tracking-tighter uppercase">Camisa 10</span>
+                    </div>
+                    <p className="text-[10px] uppercase tracking-widest text-black/60 leading-relaxed">
+                      Loja Oficial de Equipamentos<br />
+                      Avenida da Liberdade, 123<br />
+                      1250-001 Lisboa, Portugal
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <h2 className="font-display text-4xl font-bold uppercase italic mb-2">Fatura</h2>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-black/40">Nº do Pedido: <span className="text-black">{orderId}</span></p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-black/40 mt-1">Data: <span className="text-black">{new Date().toLocaleDateString('pt-PT')}</span></p>
+                  </div>
+                </div>
+
+                {/* Billing Info */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-16">
+                  <div>
+                    <h3 className="text-[10px] font-bold uppercase tracking-widest text-brand-gold mb-4 border-b border-brand-gold/20 pb-2">Cliente</h3>
+                    <p className="font-bold text-sm uppercase mb-1">{orderData?.user_name || orderData?.guest_email || 'Cliente Camisa 10'}</p>
+                    <p className="text-[10px] uppercase text-black/60">{orderData?.guest_email}</p>
+                  </div>
+                  <div className="md:text-right">
+                    <h3 className="text-[10px] font-bold uppercase tracking-widest text-brand-gold mb-4 border-b border-brand-gold/20 pb-2 md:ml-auto md:w-fit">Estado do Pagamento</h3>
+                    <span className="inline-block bg-green-100 text-green-800 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest">Pago via Stripe</span>
+                  </div>
+                </div>
+
+                {/* Items Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full mb-16">
+                    <thead>
+                      <tr className="border-b-2 border-brand-black">
+                        <th className="text-left py-4 text-[10px] font-bold uppercase tracking-widest">Item</th>
+                        <th className="text-center py-4 text-[10px] font-bold uppercase tracking-widest">Qtd</th>
+                        <th className="text-right py-4 text-[10px] font-bold uppercase tracking-widest">Preço</th>
+                        <th className="text-right py-4 text-[10px] font-bold uppercase tracking-widest">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-black/5">
+                      {orderData?.items?.map((item: any, idx: number) => (
+                        <tr key={idx}>
+                          <td className="py-6">
+                            <p className="font-bold text-xs uppercase tracking-wider">{item.product_name}</p>
+                            <p className="text-[9px] text-black/40 uppercase mt-1">Ref: {item.product_id?.slice(0, 8)}</p>
+                          </td>
+                          <td className="py-6 text-center text-xs font-bold">{item.quantity}</td>
+                          <td className="py-6 text-right text-xs">€{(item.unit_price || 0).toFixed(2)}</td>
+                          <td className="py-6 text-right text-xs font-bold">€{((item.unit_price || 0) * item.quantity).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Totals */}
+                <div className="flex justify-end border-t-2 border-brand-black pt-8">
+                  <div className="w-full md:w-64 space-y-4">
+                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-black/40">
+                      <span>Subtotal</span>
+                      <span className="text-black">€{(orderData?.total_amount || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-black/40">
+                      <span>Envio</span>
+                      <span className="text-green-600 italic font-bold">Grátis</span>
+                    </div>
+                    <div className="flex justify-between items-end pt-4 border-t border-black/10">
+                      <span className="text-[10px] font-bold uppercase tracking-widest">Total Pago</span>
+                      <span className="font-display text-3xl font-bold text-brand-gold leading-none">€{(orderData?.total_amount || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer Message */}
+                <div className="mt-20 pt-12 border-t border-black/5 text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-black/30">Obrigado por escolheres a Camisa 10 — Onde as lendas se vestem.</p>
+                </div>
+              </div>
             </div>
-            <div className="bg-brand-white/5 border border-brand-white/10 p-8 rounded-sm">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-brand-white/40 mb-2">ID do Pedido</p>
-              <p className="font-display text-3xl font-bold text-brand-gold">{orderId}</p>
+
+            {/* Actions */}
+            <div className="flex flex-col md:flex-row gap-4 justify-center mt-12 no-print">
+              <button
+                onClick={() => window.print()}
+                className="flex items-center justify-center gap-3 px-8 py-4 bg-brand-gold text-brand-black font-bold uppercase tracking-widest text-[10px] hover:bg-brand-white transition-all shadow-xl"
+              >
+                <Printer size={16} /> Imprimir Fatura
+              </button>
+              <button
+                onClick={() => setCheckoutStep('home')}
+                className="flex items-center justify-center gap-3 px-8 py-4 border border-brand-white/20 text-brand-white font-bold uppercase tracking-widest text-[10px] hover:bg-brand-white hover:text-brand-black transition-all"
+              >
+                Voltar à Loja <ArrowRight size={16} />
+              </button>
             </div>
-            <button
-              onClick={() => setCheckoutStep('home')}
-              className="px-12 py-5 border border-brand-gold text-brand-gold hover:bg-brand-gold hover:text-brand-black transition-all font-bold uppercase tracking-[0.2em] text-xs"
-            >
-              Voltar à Loja
-            </button>
           </motion.div>
         </div>
       )}

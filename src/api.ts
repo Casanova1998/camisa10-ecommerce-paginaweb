@@ -80,4 +80,5 @@ export const ordersApi = {
       method: "POST",
       data: { code },
     }),
+  getOrder: (id: string) => apiRequest(`/orders/${id}`),
 };
